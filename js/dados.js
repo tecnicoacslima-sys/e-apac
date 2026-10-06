@@ -290,8 +290,8 @@ export async function inserirEmLotes(tabela, linhas, { lote = 500, aoAvancar, up
   for (let i = 0; i < linhas.length; i += lote) {
     const parte = linhas.slice(i, i + lote);
     const q = upsert
-      ? sb.from(tabela).upsert(parte, { onConflict: upsert, ignoreDuplicates: true })
-      : sb.from(tabela).insert(parte);
+      ? sb.from(tabela).upsert(parte, { onConflict: upsert, ignoreDuplicates: true, defaultToNull: false })
+      : sb.from(tabela).insert(parte, { defaultToNull: false });   // coluna que falta numa linha usa o valor padrão do banco
     ok(await q);
     feitos += parte.length;
     if (aoAvancar) aoAvancar(feitos, linhas.length);
