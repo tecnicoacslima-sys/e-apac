@@ -165,8 +165,9 @@ export function converterChecklist(linhas, existentes = []) {
     if (vistos.has(k)) return;
     vistos.add(k);
     // sem a data/hora do salvamento original: usa o dia do recebimento (meio-dia), para os filtros por período
+    // (toda linha precisa ter criado_em: num envio em lote, coluna faltando vira vazio)
     const dia = r.data_recebimento || r.data_solicitacao;
-    if (dia) r.criado_em = dia + 'T12:00:00-04:00';
+    r.criado_em = dia ? dia + 'T12:00:00-04:00' : new Date().toISOString();
     lista.push(r);
   });
   return lista;
@@ -191,7 +192,7 @@ export function converterConferencias(linhas) {
     const fontes = ['sus', 'celk', 'doc_identidade', 'comprovante_endereco'].filter((f) => g.campos.some((c) => c[f]));
     const r = { paciente: g.paciente, cns: g.cns, campos: g.campos, fontes,
                 resumo: g.link ? 'Importada da planilha. Relatório antigo (Google Drive): ' + g.link : 'Importada da planilha.' };
-    if (g.criado_em) r.criado_em = g.criado_em;
+    r.criado_em = g.criado_em || new Date().toISOString();
     return r;
   });
 }
