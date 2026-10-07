@@ -69,7 +69,7 @@ export async function gerarPdfApac(PDFLib, dados, opts = {}) {
   const doc = await PDFDocument.create();
   doc.setTitle('APAC - ' + textoSeguro(dados.nome_paciente || ''));
   doc.setProducer('Geradora de APAC na nuvem');
-  doc.setCreator('antonioresolve.com.br');
+  doc.setCreator('apacdigital.com.br');
 
   const page = doc.addPage([LARG, ALT]);
   const normal = await doc.embedFont(StandardFonts.Helvetica);
@@ -266,7 +266,7 @@ export async function gerarPdfApac(PDFLib, dados, opts = {}) {
   campo(440, 746, X1, 'CNES', '');
 
   // rodapé
-  page.drawText('antonioresolve.com.br  ·  gerado em ' + dataHoraBR(opts.agora || new Date()),
+  page.drawText('apacdigital.com.br  ·  gerado em ' + dataHoraBR(opts.agora || new Date()),
     { x: 28, y: Y(786), size: 6, font: normal, color: CINZA });
 
   return doc.save();

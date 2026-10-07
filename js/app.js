@@ -81,7 +81,7 @@ function montarEstrutura() {
       h('span', null, p.nome || p.email),
       h('button', { type: 'button', onclick: async () => { await dados.sair(); } }, 'Sair'))));
   app.appendChild(h('main', { id: 'tela' }));
-  app.appendChild(h('footer', { class: 'rodape-site' }, 'antonioresolve.com.br · Geradora de APAC Externa'));
+  app.appendChild(h('footer', { class: 'rodape-site' }, 'apacdigital.com.br · Geradora de APAC Externa'));
 }
 
 export function subtituloUnidade(u) {
@@ -161,7 +161,7 @@ function mostrarLogin() {
         status.innerHTML = '<div class="msg erro">' + esc(err.message) + '</div>';
       }
     } }, 'Esqueci minha senha'),
-    h('div', { class: 'rodape' }, 'antonioresolve.com.br'));
+    h('div', { class: 'rodape' }, 'apacdigital.com.br'));
 
   app.innerHTML = '';
   app.appendChild(h('div', { class: 'login-fundo' }, form));

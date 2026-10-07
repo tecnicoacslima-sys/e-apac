@@ -48,7 +48,7 @@ export async function gerarPdfConferencia(PDFLib, conf, opts = {}) {
   const doc = await PDFDocument.create();
   doc.setTitle('Conferência - ' + textoSeguro(conf.paciente || ''));
   doc.setProducer('Geradora de APAC na nuvem');
-  doc.setCreator('antonioresolve.com.br');
+  doc.setCreator('apacdigital.com.br');
   const normal = await doc.embedFont(StandardFonts.Helvetica);
   const negrito = await doc.embedFont(StandardFonts.HelveticaBold);
   const italico = await doc.embedFont(StandardFonts.HelveticaOblique);
