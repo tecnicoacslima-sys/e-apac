@@ -378,9 +378,9 @@ function montarPainel() {
         h('hr', { class: 'divisor' }),
         h('button', { type: 'button', class: 'btn', style: { width: '100%' }, onclick: () => abrirBuscaSigtap({ aoEscolher: usarProcedimento }) },
           '🔍 Buscar procedimento SIGTAP'),
-        h('button', { type: 'button', class: 'btn', style: { width: '100%', marginTop: '8px' }, disabled: true,
-          title: 'Chega na próxima etapa do projeto' },
-          '🧾 Conferir espelhos ', h('span', { class: 'etiqueta-etapa' }, 'etapa 2')))));
+        h('button', { type: 'button', class: 'btn', style: { width: '100%', marginTop: '8px' },
+          title: 'Compara SUS, CELK, documento e comprovante de residência', onclick: () => { location.hash = '#/conferencia'; } },
+          '🧾 Conferir espelhos'))));
 }
 
 function atualizarResumo() {

@@ -10,6 +10,7 @@ const TELAS = {
   apac:        { rotulo: 'APAC',        carregar: () => import('./telas/apac.js') },
   pacientes:   { rotulo: 'Pacientes',   carregar: () => import('./telas/pacientes.js') },
   protocolo:   { rotulo: 'Protocolo',   carregar: () => import('./telas/protocolo.js') },
+  conferencia: { rotulo: 'Conferência', carregar: () => import('./telas/conferencia.js') },
   sigtap:      { rotulo: 'SIGTAP',      carregar: () => import('./telas/sigtap.js') },
   cadastros:   { rotulo: 'Cadastros',   carregar: () => import('./telas/cadastros.js') },
   ferramentas: { rotulo: 'Ferramentas', carregar: () => import('./telas/ferramentas.js') },
