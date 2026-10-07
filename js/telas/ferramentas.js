@@ -2,18 +2,22 @@
  * FERRAMENTAS (antes: menu 📋 APAC ▸ 🔧 Ferramentas)
  *   📊 Consumo da IA · 🔌 Testar acesso à IA · 🪪 Conferir Cartões SUS
  *   ✏️ Dados da unidade (+ brasão) · 📥 Importar planilha antiga
+ *   📥 Atualizar tabela SIGTAP (.zip) — só o administrador
  */
 import * as dados from '../dados.js';
 import { h, toast, comCarregando, listaHtml, alerta } from '../ui.js';
 import { esc, fmtNum, rotuloMes, partesData } from '../lib/texto.js';
 import { motivoCNSInvalido, validarCPF, soDigitos } from '../lib/validacao.js';
 import { atualizarSubtitulo } from '../app.js';
+import { abrirAtualizarSigtap } from './atualizar-sigtap.js';
+import { rotuloCompetencia } from '../lib/sigtap-zip.js';
 
 export async function montar(area) {
   area.append(
     h('div', { class: 'titulo-tela' }, h('div', null, h('h1', null, '🔧 Ferramentas'))),
     h('div', { class: 'grade-cards' },
-      cartaoConsumo(), cartaoUnidade(), cartaoCartoes(), cartaoTesteIA(), cartaoImportar()));
+      cartaoConsumo(), cartaoUnidade(), cartaoCartoes(), cartaoTesteIA(),
+      dados.souAdmin() ? cartaoSigtap() : null, cartaoImportar()));
 }
 
 // ---------------- 📊 CONSUMO DA IA ----------------
@@ -154,6 +158,24 @@ function cartaoTesteIA() {
     h('div', { class: 'card-conteudo' },
       h('p', { class: 'mudo pequeno', style: { marginTop: 0 } }, 'Faz uma chamada mínima (gasta pouquíssimos tokens) para conferir se a IA responde.'),
       botao, saida));
+}
+
+// ---------------- 📥 ATUALIZAR SIGTAP (só admin) ----------------
+function cartaoSigtap() {
+  const info = h('p', { class: 'pequeno', style: { marginTop: 0 } }, 'Carregando…');
+  const carregar = () => dados.infoSigtap().then((i) => {
+    info.innerHTML = i.competencia
+      ? 'Em uso: competência <b>' + esc(rotuloCompetencia(i.competencia)) + '</b> · ' + esc(fmtNum(i.total)) + ' procedimentos'
+      : '⚠️ Nenhuma tabela SIGTAP carregada ainda.';
+  }).catch((e) => { info.textContent = e.message; });
+  carregar();
+  return h('section', { class: 'card' }, h('h2', null, '📥 Atualizar tabela SIGTAP (.zip)'),
+    h('div', { class: 'card-conteudo' },
+      h('p', { class: 'mudo pequeno', style: { marginTop: 0 } },
+        'Monta a tabela oficial a partir do .zip da Tabela Unificada do DATASUS. Vale para todas as unidades. Não usa IA.'),
+      info,
+      h('button', { type: 'button', class: 'btn principal', onclick: () => abrirAtualizarSigtap({ aoTerminar: carregar }) },
+        '📥 Atualizar pelo .zip')));
 }
 
 // ---------------- 📥 IMPORTAR ----------------

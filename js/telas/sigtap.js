@@ -17,7 +17,7 @@ function montarBusca({ aoEscolher, fechar } = {}) {
   dados.infoSigtap().then((i) => {
     info.textContent = i.competencia
       ? 'Tabela SIGTAP em uso: competência ' + i.competencia.substring(4) + '/' + i.competencia.substring(0, 4) + ' · ' + i.total.toLocaleString('pt-BR') + ' procedimentos'
-      : '⚠️ Nenhuma tabela SIGTAP carregada ainda (Ferramentas ▸ Importar planilha antiga).';
+      : '⚠️ Nenhuma tabela SIGTAP carregada ainda (Ferramentas ▸ Atualizar tabela SIGTAP).';
   }).catch((e) => { info.textContent = e.message; });
 
   const buscar = atrasar(async (termo) => {
@@ -62,6 +62,10 @@ export async function montar(area) {
   area.append(
     h('div', { class: 'titulo-tela' },
       h('div', null, h('h1', null, '🔍 Procedimentos SIGTAP'),
-        h('p', null, 'Busque pelo código ou por palavras do nome (sem se preocupar com acento).'))),
+        h('p', null, 'Busque pelo código ou por palavras do nome (sem se preocupar com acento).')),
+      dados.souAdmin() ? h('button', { type: 'button', class: 'btn', onclick: async () => {
+        const { abrirAtualizarSigtap } = await import('./atualizar-sigtap.js');
+        abrirAtualizarSigtap({ aoTerminar: () => { area.innerHTML = ''; montar(area); } });
+      } }, '📥 Atualizar tabela (.zip)') : null),
     h('div', { class: 'card' }, h('div', { class: 'card-conteudo' }, montarBusca())));
 }
