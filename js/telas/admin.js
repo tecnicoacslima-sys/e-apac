@@ -247,6 +247,10 @@ async function abaUsuarios(area) {
         const btn = janela.el.querySelector('.modal-rodape .principal');
         await comCarregando(btn, 'Enviando…', async () => {
           try {
+            if (email.value.trim().toLowerCase() === String(dados.sessao.perfil.email || '').toLowerCase()) {
+              throw new Error('Este é o seu próprio e-mail. Convidar você mesmo tiraria o seu acesso de administrador. ' +
+                'Para testar outra unidade, use outro e-mail (ex.: um Gmail só para demonstração).');
+            }
             const msg = await dados.convidarUsuario({ email: email.value, nome: nome.value, unidade_id: un.value, papel: papel.value });
             fechar(); toast(msg, '✅ Convite'); carregar();
           } catch (e) { status.innerHTML = '<div class="msg erro">' + esc(e.message) + '</div>'; }
