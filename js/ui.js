@@ -167,6 +167,34 @@ export function zonaArquivo({ aceitar = 'application/pdf', texto = 'Escolha o PD
   return zona;
 }
 
+/** Baixa o PDF (bytes) com o nome certo, ex.: NOME_PROCEDIMENTO_DATA.pdf */
+export function baixarPdf(bytes, nome) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  const a = h('a', { href: url, download: /\.pdf$/i.test(nome) ? nome : nome + '.pdf', style: { display: 'none' } });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+}
+
+/**
+ * Abre numa aba nova o PDF guardado na nuvem (o endereço termina com o nome
+ * do arquivo, então "Salvar" no navegador já sugere o nome certo).
+ * pegarLink: função async que devolve o link; se falhar, abre os bytes.
+ */
+export async function abrirPdfGuardado(pegarLink, bytes) {
+  const janela = window.open('', '_blank');      // abre já no clique, para o navegador não bloquear
+  if (!janela) { alerta('Janela bloqueada', 'O navegador bloqueou a nova aba. Permita janelas (pop-ups) para este site.'); return; }
+  try {
+    const link = pegarLink ? await pegarLink() : '';
+    if (link) { janela.location.href = link; return; }
+  } catch (e) { /* abre os bytes abaixo */ }
+  if (!bytes) { janela.close(); alerta('Não abriu', 'Não consegui abrir o PDF. Tente de novo.'); return; }
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  janela.location.href = url;
+  setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
+}
+
 /** Abre PDF (bytes) numa aba nova para ver/imprimir. */
 export function abrirPdf(bytes) {
   const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));

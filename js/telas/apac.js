@@ -5,7 +5,7 @@
  */
 import * as dados from '../dados.js';
 import { h, toast, modal, confirmar, alerta, listaHtml, comCarregando, zonaArquivo,
-         lerArquivoBuffer, lerArquivoBase64, abrirPdf, atrasar } from '../ui.js';
+         lerArquivoBuffer, lerArquivoBase64, abrirPdfGuardado, baixarPdf, atrasar } from '../ui.js';
 import { SECOES, CHAVES, formularioVazio, camposObrigatoriosFaltando, assinaturaFormulario,
          aplicarPaciente, aplicarSugestao, nomeArquivoApac } from '../lib/formulario.js';
 import { soDigitos, motivoCNSInvalido, motivoDocProfissional } from '../lib/validacao.js';
@@ -655,6 +655,7 @@ async function passo3GerarPdf(botao) {
     const p = partesData();
     let caminho = u.id + '/' + p.ano + '/' + p.mes + '/' + nome + '.pdf';
     let aviso = '';
+    let guardado = false;
 
     try {
       try {
@@ -670,6 +671,7 @@ async function passo3GerarPdf(botao) {
         assinatura: await assinaturaFormulario(form)
       });
       form._apac_id = reg.id;
+      guardado = true;
       salvarDepois();
     } catch (e) {
       aviso = 'O PDF foi gerado, mas não consegui guardar uma cópia na nuvem (' + e.message + '). Imprima ou salve agora.';
@@ -678,11 +680,15 @@ async function passo3GerarPdf(botao) {
     modal({
       titulo: '✅ APAC gerada',
       conteudo: h('div', { style: { textAlign: 'center' } },
-        h('p', null, h('b', null, nome + '.pdf')),
+        h('p', null, h('b', null, caminho.split('/').pop())),
         aviso ? h('div', { class: 'msg aviso' }, aviso) : h('p', { class: 'mudo pequeno' }, 'Uma cópia ficou guardada em Protocolo ▸ APACs geradas.')),
       botoes: [
         { texto: 'Fechar' },
-        { texto: '🖨️ Abrir / Imprimir PDF', classe: 'principal', acao: (fechar) => { abrirPdf(bytes); fechar(); } }
+        { texto: '⬇️ Baixar PDF', acao: () => baixarPdf(bytes, caminho.split('/').pop()) },
+        { texto: '🖨️ Abrir / Imprimir PDF', classe: 'principal', acao: (fechar) => {
+          abrirPdfGuardado(guardado ? () => dados.linkTemporario('apacs', caminho, 600) : null, bytes);
+          fechar();
+        } }
       ]
     });
   });

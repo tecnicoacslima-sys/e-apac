@@ -10,7 +10,7 @@
  * (ex.: RG frente e verso).
  */
 import * as dados from '../dados.js';
-import { h, toast, modal, alerta, comCarregando, lerArquivoBase64, atrasar } from '../ui.js';
+import { h, toast, modal, alerta, comCarregando, lerArquivoBase64, atrasar, abrirPdfGuardado, baixarPdf } from '../ui.js';
 import { esc, dataHoraBR } from '../lib/texto.js';
 import {
   CONF, CONF_FONTES, TIPOS_ACEITOS, tipoDoArquivo, validarSelecao, montarPromptConferencia,
@@ -263,16 +263,16 @@ function mostrarResultado(conf, bytes) {
       conf.resumo ? h('div', { style: { marginTop: '4px' } }, conf.resumo) : null),
     contadores(conf.campos),
     h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' } },
-      h('button', { type: 'button', class: 'btn principal', onclick: () => abrirBytes(bytes) }, '🖨️ Abrir relatório em PDF'),
+      h('button', { type: 'button', class: 'btn principal',
+        onclick: () => abrirPdfGuardado(() => dados.linkTemporario('relatorios', conf.relatorio_path, 600), bytes) }, '🖨️ Abrir relatório em PDF'),
+      h('button', { type: 'button', class: 'btn', onclick: () => baixarPdf(bytes, nomeRelatorio(conf)) }, '⬇️ Baixar PDF'),
       h('button', { type: 'button', class: 'btn', onclick: limparSelecao }, '➕ Nova conferência')),
     tabelaCampos(conf));
 }
 
-function abrirBytes(bytes) {
-  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-  const janela = window.open(url, '_blank');
-  if (!janela) alerta('Janela bloqueada', 'O navegador bloqueou a nova aba. Permita janelas (pop-ups) para este site.');
-  setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
+/** Nome do arquivo do relatório: 2026-10-07_NOME_DO_PACIENTE.pdf */
+function nomeRelatorio(c) {
+  return c.relatorio_path ? c.relatorio_path.split('/').pop() : caminhoRelatorio('x', c.paciente, c.criado_em ? new Date(c.criado_em) : new Date()).split('/').pop();
 }
 
 // ============================================================
@@ -346,15 +346,18 @@ function verConferencia(c) {
 async function abrirRelatorio(c, botao) {
   const tarefa = async () => {
     if (c.relatorio_path) {
-      const url = await dados.linkTemporario('relatorios', c.relatorio_path, 600);
-      const janela = window.open(url, '_blank');
-      if (!janela) alerta('Janela bloqueada', 'O navegador bloqueou a nova aba. Permita janelas (pop-ups) para este site.');
+      await abrirPdfGuardado(() => dados.linkTemporario('relatorios', c.relatorio_path, 600), null);
       return;
     }
+    // antiga (importada da planilha): refaz o PDF na hora (a aba abre já no clique)
     const importada = /^Importada da planilha/.test(c.resumo || '');
     const conf = { ...c, resumo: importada ? '' : c.resumo };
-    const bytes = await gerarPdfConferencia(window.PDFLib, conf, await opcoesPdf(c.criado_em));
-    abrirBytes(bytes);
+    await abrirPdfGuardado(async () => {
+      const bytes = await gerarPdfConferencia(window.PDFLib, conf, await opcoesPdf(c.criado_em));
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
+      return url;
+    }, null);
   };
   try {
     if (botao) await comCarregando(botao, 'Abrindo…', tarefa);
