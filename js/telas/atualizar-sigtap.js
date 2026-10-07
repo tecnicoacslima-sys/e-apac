@@ -94,7 +94,8 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
   function mostrarResumo(r, mesma, cmp) {
     const apagar = h('input', { type: 'checkbox', checked: true });
     status.innerHTML = '';
-    status.append(
+    // (append do navegador escreve "null" para itens vazios: por isso o filter)
+    status.append(...[
       h('div', { class: 'msg ok' },
         h('div', null, '📦 Competência ', h('b', null, rotuloCompetencia(r.competencia)), ' · ', h('b', null, fmtNum(r.linhas.length)), ' procedimentos'),
         mesma ? h('div', null, 'É a mesma competência que já está em uso: ela será ', h('b', null, 'substituída'), ' (nomes e habilitações atualizados).') : null,
@@ -113,7 +114,8 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
       !mesma && info.competencia ? h('label', { style: { display: 'flex', gap: '8px', alignItems: 'flex-start', margin: '10px 0 0', cursor: 'pointer' } },
         apagar,
         h('span', null, 'Apagar a(s) tabela(s) antiga(s) depois de gravar a nova',
-          h('br'), h('small', { class: 'mudo' }, 'O sistema passa a usar sozinho a competência mais recente.'))) : null);
+          h('br'), h('small', { class: 'mudo' }, 'O sistema passa a usar sozinho a competência mais recente.'))) : null
+    ].filter(Boolean));
 
     janela.definirBotoes([
       { texto: 'Cancelar' },
