@@ -577,7 +577,8 @@ function mostrarResultadoLaudo(r, resultado, janela, zona) {
   };
 
   resultado.innerHTML = '';
-  resultado.append(
+  // (append do navegador escreve "null" para itens vazios: por isso o filter)
+  resultado.append(...[
     h('span', { class: 'badge ' + cls }, textoBadge),
     h('div', { class: 'secao-titulo' }, 'Dados do laudo'),
     linha('Paciente', r.paciente),
@@ -590,7 +591,8 @@ function mostrarResultadoLaudo(r, resultado, janela, zona) {
     h('div', { class: 'secao-titulo' }, 'Referência local'),
     linha('Código de referência', r.codigo_referencia || '— (não catalogado)'),
     linha('Confiança do registro', r.confianca_referencia),
-    h('div', { class: 'msg info' }, r.mensagem || ''));
+    h('div', { class: 'msg info' }, r.mensagem || '')
+  ].filter(Boolean));
 
   if (s.codigo || s.cid) {
     resultado.appendChild(h('div', { class: 'bloco-editar' },
