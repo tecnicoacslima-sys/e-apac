@@ -54,19 +54,22 @@ function montarProtocolo(area) {
     atualizarContador();
   } });
 
-  const carregar = async () => {
+  // manter = true → depois de editar/incluir, as linhas que estavam marcadas continuam marcadas
+  const carregar = async (manter) => {
     corpo.innerHTML = '<tr><td colspan="12"><div class="carregando"><span class="spinner"></span>Carregando…</div></td></tr>';
+    const antes = manter === true ? marcadas : new Set();
     marcadas = new Set();
     marcarTodos.checked = false;
     try {
       linhas = await dados.listarProtocolo({ de: de.value, ate: ate.value, texto: texto.value });
+      linhas.forEach((l) => { if (antes.has(l.id)) marcadas.add(l.id); });
       desenhar();
     } catch (e) {
       corpo.innerHTML = '<tr><td colspan="12"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
     }
   };
   recarregarLista = carregar;
-  [de, ate].forEach((el) => el.addEventListener('change', carregar));
+  [de, ate].forEach((el) => el.addEventListener('change', () => carregar()));
   texto.addEventListener('keydown', (e) => { if (e.key === 'Enter') carregar(); });
 
   area.append(h('div', { class: 'card' }, h('div', { class: 'card-conteudo' },
@@ -74,7 +77,7 @@ function montarProtocolo(area) {
       h('div', { class: 'campo' }, h('label', null, 'Salvos de'), de),
       h('div', { class: 'campo' }, h('label', null, 'até'), ate),
       h('div', { class: 'campo', style: { flex: '1', minWidth: '200px' } }, h('label', null, 'Procurar'), texto),
-      h('button', { class: 'btn', onclick: carregar }, '🔎 Filtrar')),
+      h('button', { class: 'btn', onclick: () => carregar() }, '🔎 Filtrar')),
     h('div', { class: 'botoes', style: { marginBottom: '10px' } },
       h('button', { class: 'btn principal', onclick: imprimirProtocolo }, '🖨️ Imprimir protocolo (linhas marcadas)'),
       h('button', { class: 'btn laranja', onclick: () => editarLinha(null) }, '➕ Incluir APAC no protocolo'),
@@ -237,7 +240,12 @@ function editarLinha(l) {
             if (res.error) throw new Error(dados.traduzirErro(res.error));
             fechar();
             toast(v.nome_paciente + ' — ' + v.procedimento, nova ? '✅ Incluído no protocolo' : '✅ Linha corrigida');
-            if (recarregarLista) recarregarLista();
+            if (nova) {
+              // a linha nova já entra marcada, pronta para imprimir
+              const r = await dados.sb.from('protocolo').select('id').order('id', { ascending: false }).limit(1);
+              if (r.data && r.data[0]) marcadas.add(r.data[0].id);
+            }
+            if (recarregarLista) recarregarLista(true);
           } catch (e) {
             status.innerHTML = '<div class="msg erro">' + esc(e.message) + '</div>';
           }
@@ -266,18 +274,20 @@ async function imprimirProtocolo() {
     '<td class="c">' + esc(isoParaBR(l.data_solicitacao)) + '</td><td class="c">' + esc(isoParaBR(l.data_recebimento)) + '</td></tr>').join('');
 
   janela.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Protocolo de APACs</title><style>' +
-    '@page{size:A4 landscape;margin:10mm}body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0}' +
+    '@page{size:A4 landscape;margin:0}body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:10mm}' +
     '.cab{display:flex;align-items:center;gap:14px;border:1px solid #000;padding:6px 10px;border-bottom:0}' +
-    '.cab img{height:56px}.cab div{flex:1;text-align:center;line-height:1.35}.cab b{font-size:11px}' +
+    '.cab .lado{flex:0 0 90px;height:60px;display:flex;align-items:center;justify-content:center}' +
+    '.cab .lado img{max-height:60px;max-width:90px}.cab .meio{flex:1;text-align:center;line-height:1.35}.cab b{font-size:11px}' +
     '.tit{border:1px solid #000;text-align:center;font-weight:bold;padding:4px;font-size:10.5px}' +
     'table{border-collapse:collapse;width:100%}th,td{border:1px solid #000;padding:4px 5px;vertical-align:middle}' +
     'th{font-size:9.5px;background:#eee}td{font-weight:bold;font-size:9.5px}.c{text-align:center}' +
     'thead{display:table-header-group}tr{page-break-inside:avoid}.rod{margin-top:6px;font-size:8.5px;color:#555}' +
     '</style></head><body>' +
-    '<div class="cab">' + (brasao ? '<img src="' + esc(brasao) + '" alt="">' : '') + '<div>' +
+    // brasão à esquerda e um espaço do mesmo tamanho à direita: o texto fica no centro exato da folha
+    '<div class="cab"><div class="lado">' + (brasao ? '<img src="' + esc(brasao) + '" alt="">' : '') + '</div><div class="meio">' +
     '<b>PREFEITURA MUNICIPAL DE ' + esc((u.municipio || '').toUpperCase()) + '</b><br>SECRETARIA MUNICIPAL DE SAÚDE' +
     (u.email_secretaria ? '<br>Endereço Eletrônico: ' + esc(u.email_secretaria) : '') +
-    '<br><b>' + esc((u.nome || '').toUpperCase()) + '</b></div>' + (brasao ? '<div style="flex:0 0 56px"></div>' : '') + '</div>' +
+    '<br><b>' + esc((u.nome || '').toUpperCase()) + '</b></div><div class="lado"></div></div>' +
     '<div class="tit">PROTOCOLO DE APAC’S EXTERNAS ENVIADAS AO SETOR DE CONTROLE, AVALIAÇÃO E AUDITORIA SUS</div>' +
     '<table><thead><tr><th>NOME DO PACIENTE</th><th>SEXO</th><th>PROCEDIMENTO SOLICITADO</th><th>CID</th><th>CÓDIGO</th>' +
     '<th>MÉDICO SOLICITANTE</th><th>SOLIC</th><th>RECEB</th></tr></thead><tbody>' + linhasHtml + '</tbody></table>' +
