@@ -59,7 +59,11 @@ async function abaUnidades(area) {
           h('td', null, limite),
           h('td', { class: 'num' }, fmtNum(usado)),
           h('td', null, u.codigo_hash ? '✔ tem código' : h('span', { class: 'mudo' }, '—')),
-          h('td', { class: 'direita' }, h('button', { class: 'btn pequeno', onclick: () => gerarCodigo(u) }, '🔑 Código p/ planilha antiga'))));
+          h('td', { class: 'direita', style: { whiteSpace: 'nowrap' } },
+            h('button', { class: 'btn pequeno', onclick: () => gerarCodigo(u) }, '🔑 Código p/ planilha antiga'), ' ',
+            u.id === dados.sessao.unidade.id ? null
+              : h('button', { class: 'btn pequeno perigo', title: 'Apaga pacientes, protocolo, APACs e conferências desta unidade',
+                  onclick: () => limparUnidade(u, carregar) }, '🧹 Limpar dados'))));
       });
     } catch (e) {
       corpo.innerHTML = '<tr><td colspan="6"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
@@ -106,6 +110,62 @@ async function novaUnidade(aoCriar) {
         } catch (e) { status.innerHTML = '<div class="msg erro">' + esc(e.message) + '</div>'; }
       });
     } }]
+  });
+}
+
+/** 🧹 Zera os dados de uma unidade (ex.: a Unidade Teste entre demonstrações). */
+function limparUnidade(u, aoTerminar) {
+  const cadastros = h('input', { type: 'checkbox' });
+  const confirmacao = h('input', { placeholder: u.nome, autocomplete: 'off' });
+  const status = h('div');
+  const janela = modal({
+    titulo: '🧹 Limpar dados · ' + u.nome,
+    largura: 560,
+    conteudo: h('div', null,
+      h('div', { class: 'msg aviso', style: { marginTop: 0 } },
+        h('b', null, 'Isto apaga de vez, sem volta: '),
+        'pacientes, Protocolo/Check-list, APACs geradas e conferências de ', h('b', null, u.nome), '.'),
+      h('p', { class: 'pequeno' }, 'Continuam: a unidade, os usuários ligados a ela e o histórico de consumo da IA.'),
+      h('label', { style: { display: 'flex', gap: '8px', alignItems: 'flex-start', margin: '8px 0 12px', cursor: 'pointer' } },
+        cadastros, h('span', null, 'Apagar também os cadastros: CNES, profissionais e Referência SIGTAP')),
+      h('div', { class: 'campo' }, h('label', null, 'Para confirmar, digite o nome da unidade: ' + u.nome), confirmacao),
+      status),
+    botoes: [
+      { texto: 'Cancelar' },
+      { texto: '🧹 Apagar os dados', classe: 'perigo', acao: async () => {
+        status.innerHTML = '';
+        if (confirmacao.value.trim().replace(/\s+/g, ' ').toUpperCase() !== u.nome.trim().replace(/\s+/g, ' ').toUpperCase()) {
+          status.innerHTML = '<div class="msg erro">Digite exatamente o nome da unidade: ' + esc(u.nome) + '</div>';
+          return;
+        }
+        const btn = janela.el.querySelector('.modal-rodape .perigo');
+        await comCarregando(btn, 'Apagando…', async () => {
+          try {
+            const { data: r, error } = await dados.sb.rpc('limpar_unidade',
+              { p_unidade: u.id, p_confirmacao: confirmacao.value, p_cadastros: cadastros.checked });
+            if (error) throw new Error(dados.traduzirErro(error));
+            const linhas = [
+              fmtNum(r.pacientes) + ' paciente(s)', fmtNum(r.protocolo) + ' linha(s) do protocolo',
+              fmtNum(r.apacs) + ' APAC(s) gerada(s)', fmtNum(r.conferencias) + ' conferência(s)'];
+            if (cadastros.checked) {
+              linhas.push(fmtNum(r.estabelecimentos) + ' CNES', fmtNum(r.profissionais) + ' profissional(is)',
+                fmtNum(r.referencia) + ' linha(s) da Referência SIGTAP');
+            }
+            janela.corpo.innerHTML = '';
+            janela.corpo.appendChild(h('div', { class: 'msg ok', style: { marginTop: 0 } },
+              h('b', null, '✅ ' + u.nome + ' foi limpa. Apagado:'),
+              h('ul', { style: { margin: '6px 0 0 18px', padding: 0 } }, ...linhas.map((t) => h('li', null, t)))));
+            janela.corpo.appendChild(h('p', { class: 'pequeno mudo' },
+              'Os PDFs antigos dessa unidade não aparecem mais em lugar nenhum do sistema. Se quiser liberar o espaço, ' +
+              'apague a pasta da unidade no Supabase ▸ Storage (o nome da pasta é o código ' + u.id + ').'));
+            janela.definirBotoes([{ texto: 'Fechar', classe: 'principal' }]);
+            if (aoTerminar) aoTerminar();
+          } catch (e) {
+            status.innerHTML = '<div class="msg erro">' + esc(e.message) + '</div>';
+          }
+        });
+      } }
+    ]
   });
 }
 
