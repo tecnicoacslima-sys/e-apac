@@ -1,19 +1,21 @@
 /**
  * PROTOCOLO (antes: abas CHECK_LIST e PROTOCOLO_APAC) e APACs GERADAS.
  *  • Lista o que foi salvo em ④, com PÁGINA, OBS. e RECEB editáveis.
+ *  • ✏️ corrige qualquer campo de uma linha; ➕ inclui à mão uma APAC
+ *    que não passou pela Geradora (já veio pronta).
  *  • Imprime o "Protocolo de APAC's externas enviadas ao setor de
  *    Controle, Avaliação e Auditoria SUS" das linhas marcadas.
  *  • Exporta em planilha (CSV).
  *  • APACs geradas: reabre o PDF ou carrega no formulário.
  */
 import * as dados from '../dados.js';
-import { h, toast, confirmar, alerta } from '../ui.js';
-import { esc, isoParaBR, brParaISO, mascararData, dataHoraBR, partesData } from '../lib/texto.js';
+import { h, toast, confirmar, alerta, modal, comCarregando, atrasar } from '../ui.js';
+import { esc, isoParaBR, brParaISO, mascararData, dataHoraBR, partesData, hojeBR, codigoSigtap10 } from '../lib/texto.js';
 import { carregarDadosSalvos } from './apac.js';
 
 let linhas = [];
 let marcadas = new Set();
-let corpo, contador;
+let corpo, contador, recarregarLista;
 
 export async function montar(area) {
   const conteudo = h('div');
@@ -63,6 +65,7 @@ function montarProtocolo(area) {
       corpo.innerHTML = '<tr><td colspan="12"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
     }
   };
+  recarregarLista = carregar;
   [de, ate].forEach((el) => el.addEventListener('change', carregar));
   texto.addEventListener('keydown', (e) => { if (e.key === 'Enter') carregar(); });
 
@@ -74,6 +77,7 @@ function montarProtocolo(area) {
       h('button', { class: 'btn', onclick: carregar }, '🔎 Filtrar')),
     h('div', { class: 'botoes', style: { marginBottom: '10px' } },
       h('button', { class: 'btn principal', onclick: imprimirProtocolo }, '🖨️ Imprimir protocolo (linhas marcadas)'),
+      h('button', { class: 'btn laranja', onclick: () => editarLinha(null) }, '➕ Incluir APAC no protocolo'),
       h('button', { class: 'btn', onclick: exportarCsv }, '⬇️ Baixar planilha (CSV)'),
       contador),
     h('div', { class: 'tabela-rolagem', style: { maxHeight: '65vh' } }, h('table', { class: 'tabela' },
@@ -123,13 +127,124 @@ function desenhar() {
       h('td', null, celula('data_recebimento', isoParaBR(l.data_recebimento), '92px', true)),
       h('td', null, celula('pagina', l.pagina, '60px')),
       h('td', null, celula('obs', l.obs, '160px')),
-      h('td', null, h('button', { class: 'btn pequeno link', title: 'Excluir esta linha', onclick: async () => {
+      h('td', { style: { whiteSpace: 'nowrap' } },
+        h('button', { class: 'btn pequeno link', title: 'Editar esta linha', onclick: () => editarLinha(l) }, '✏️'),
+        h('button', { class: 'btn pequeno link', title: 'Excluir esta linha', onclick: async () => {
         if (!await confirmar('Excluir linha', 'Excluir <b>' + esc(l.nome_paciente) + '</b> — ' + esc(l.procedimento) + ' do protocolo?', { sim: 'Excluir', perigo: true })) return;
         try { await dados.excluirProtocolo(l.id); linhas = linhas.filter((x) => x.id !== l.id); marcadas.delete(l.id); desenhar(); }
         catch (e) { toast(e.message, '❌ Erro', 'erro'); }
       } }, '🗑️'))));
   });
   atualizarContador();
+}
+
+// ============================================================
+// ✏️ EDITAR / ➕ INCLUIR LINHA
+// ============================================================
+const CAMPOS_LINHA = [
+  { k: 'nome_paciente',      rot: 'Nome do paciente',            largo: true, maiusc: true },
+  { k: 'sexo',               rot: 'Sexo',                        lista: [['', '—'], ['M', 'M'], ['F', 'F']] },
+  { k: 'codigo',             rot: 'Código SIGTAP',               num: 10 },
+  { k: 'procedimento',       rot: 'Procedimento solicitado',     largo: true, maiusc: true },
+  { k: 'cid',                rot: 'CID',                         maiusc: true },
+  { k: 'medico_solicitante', rot: 'Médico solicitante',          largo: true, maiusc: true },
+  { k: 'data_solicitacao',   rot: 'Data da solicitação',         data: true },
+  { k: 'data_recebimento',   rot: 'Data de recebimento',         data: true },
+  { k: 'pagina',             rot: 'Página' },
+  { k: 'obs',                rot: 'Observação',                  largo: true }
+];
+
+/** l = linha existente (editar) ou null (incluir APAC que não passou pela Geradora) */
+function editarLinha(l) {
+  const nova = !l;
+  const base = l || { data_recebimento: brParaISO(hojeBR()) };
+  const ent = {};
+  const status = h('div');
+
+  const grade = h('div', { class: 'form-simples' }, ...CAMPOS_LINHA.map((c) => {
+    let el;
+    const valor = c.data ? isoParaBR(base[c.k]) : (base[c.k] || '');
+    if (c.lista) el = h('select', null, ...c.lista.map(([v, t]) => h('option', { value: v, selected: v === valor }, t)));
+    else el = h('input', { type: 'text', value: valor, maxlength: c.data ? 10 : (c.num || null),
+                          inputmode: c.num || c.data ? 'numeric' : null, placeholder: c.data ? 'dd/mm/aaaa' : null,
+                          style: c.maiusc ? { textTransform: 'uppercase' } : null });
+    if (c.data) el.addEventListener('input', () => { el.value = mascararData(el.value); });
+    if (c.num) el.addEventListener('input', () => { el.value = el.value.replace(/\D/g, '').substring(0, c.num); });
+    ent[c.k] = el;
+    return h('div', { class: 'campo', style: c.largo ? { gridColumn: '1 / -1' } : null }, h('label', null, c.rot), el);
+  }));
+
+  // Código SIGTAP completo e procedimento vazio → preenche o nome oficial
+  ent.codigo.addEventListener('change', async () => {
+    const cod = codigoSigtap10(ent.codigo.value);
+    if (!/^\d{10}$/.test(cod) || ent.procedimento.value.trim()) return;
+    try {
+      const r = await dados.sigtapPorCodigos([cod]);
+      const reg = r.mapa && r.mapa.get(cod);
+      if (reg) { ent.procedimento.value = reg.nome.toUpperCase(); toast(reg.nome, 'SIGTAP', 'ok', 3); }
+    } catch (e) { /* sem SIGTAP: digita à mão */ }
+  });
+
+  // Buscar paciente já cadastrado (preenche nome e sexo)
+  const resultados = h('div', { class: 'resultados' });
+  const buscar = atrasar(async (termo) => {
+    if (termo.trim().length < 3) { resultados.innerHTML = ''; return; }
+    try {
+      const r = await dados.buscarPacientes(termo);
+      resultados.innerHTML = '';
+      r.lista.forEach((p) => resultados.appendChild(h('button', { type: 'button', class: 'resultado', onclick: async () => {
+        const pac = await dados.pacientePorId(p.id);
+        ent.nome_paciente.value = pac.nome;
+        ent.sexo.value = pac.sexo === 'Masculino' ? 'M' : (pac.sexo === 'Feminino' ? 'F' : '');
+        resultados.innerHTML = '';
+        campoBusca.value = '';
+      } }, h('strong', null, p.nome), h('span', null, 'CNS ' + (p.cns || '—')))));
+    } catch (e) { resultados.innerHTML = '<div class="msg erro">' + esc(e.message) + '</div>'; }
+  });
+  const campoBusca = h('input', { type: 'search', placeholder: 'Digite nome, Cartão SUS ou CPF (opcional)', oninput: (e) => buscar(e.target.value),
+    style: { width: '100%', padding: '8px 10px', border: '1px solid var(--entrada-borda)', borderRadius: '6px' } });
+
+  const janela = modal({
+    titulo: nova ? '➕ Incluir APAC no protocolo' : '✏️ Editar linha do protocolo',
+    largura: 680,
+    conteudo: h('div', null,
+      nova ? h('p', { class: 'mudo pequeno', style: { marginTop: 0 } },
+        'Para APACs que já vieram prontas e não passaram pela Geradora. A linha entra no protocolo como se tivesse sido salva pelo botão ④.') : null,
+      h('div', { class: 'campo' }, h('label', null, '🔎 Buscar paciente cadastrado'), campoBusca, resultados),
+      grade, status),
+    botoes: [
+      { texto: 'Cancelar' },
+      { texto: nova ? 'Incluir no protocolo' : 'Salvar alterações', classe: 'principal', acao: async (fechar) => {
+        const v = {};
+        for (const c of CAMPOS_LINHA) {
+          let x = ent[c.k].value.trim();
+          if (c.maiusc) x = x.toUpperCase();
+          if (c.data) {
+            if (x && !brParaISO(x)) { status.innerHTML = '<div class="msg erro">' + esc(c.rot) + ': data inválida (use dd/mm/aaaa).</div>'; return; }
+            x = x ? brParaISO(x) : null;
+          }
+          v[c.k] = x;
+        }
+        if (v.codigo) v.codigo = codigoSigtap10(v.codigo);
+        if (!v.nome_paciente) { status.innerHTML = '<div class="msg erro">Digite o nome do paciente.</div>'; return; }
+        if (!v.procedimento) { status.innerHTML = '<div class="msg erro">Digite o procedimento.</div>'; return; }
+        const btn = janela.el.querySelector('.modal-rodape .principal');
+        await comCarregando(btn, 'Salvando…', async () => {
+          try {
+            const res = nova
+              ? await dados.sb.from('protocolo').insert(v)
+              : await dados.sb.from('protocolo').update(v).eq('id', l.id);
+            if (res.error) throw new Error(dados.traduzirErro(res.error));
+            fechar();
+            toast(v.nome_paciente + ' — ' + v.procedimento, nova ? '✅ Incluído no protocolo' : '✅ Linha corrigida');
+            if (recarregarLista) recarregarLista();
+          } catch (e) {
+            status.innerHTML = '<div class="msg erro">' + esc(e.message) + '</div>';
+          }
+        });
+      } }
+    ]
+  });
 }
 
 /** Abre uma janela com o protocolo pronto para imprimir (A4 deitado). */
