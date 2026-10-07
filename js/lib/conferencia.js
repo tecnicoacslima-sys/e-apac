@@ -91,6 +91,10 @@ export function montarPromptConferencia(fontesPresentes, unidade = {}) {
     '- Campo ausente em um documento = valor null para essa fonte, NÃO é divergência, é "não verificável".\n' +
     '- Atenção especial quando dois documentos concordam mas um terceiro diverge - reportar com destaque.\n' +
     '- No comprovante de endereço, o titular pode ser outra pessoa (familiar): compare só os campos de endereço (CEP, Bairro, Logradouro, Número) e diga na observação se o titular é outra pessoa.\n' +
+    '- Espelho SUS/CADSUS — NÃO são erros (marque "ok" se o resto confere):\n' +
+    '  • Números com barra depois do nome do logradouro (ex.: "RUA DOS FLAMBOYANTS 1/99998", "AV BRASIL 2/1998"): é a faixa de numeração do CEP que o CADSUS traz sozinho (lado ímpar/par da rua). Ignore essa faixa e compare só o nome do logradouro e o CEP.\n' +
+    '  • Bairro abreviado ou cortado no espelho impresso (ex.: "RESIDENCIAL DAS", "RESID DAS PALMEIRAS", "RES DAS PALMEIRAS", "JD PRIMAVERA"): é limite de espaço do layout do espelho. Se o começo bate com o bairro dos outros documentos, é "ok".\n' +
+    '  • Nesses dois casos não escreva observação e não cite o assunto no resumo.\n' +
     '- Observação: APENAS quando status for "divergente" ou "atencao". Máximo 1 frase curta e direta (até ~20 palavras), indicando só quais fontes divergem e a ação sugerida. NÃO escreva observação para campos "ok".\n\n' +
     'Responda SOMENTE com JSON válido, sem texto antes ou depois, sem markdown:\n' +
     '{\n' +
@@ -159,12 +163,84 @@ export function normalizarResultado(obj, fontesPresentes) {
     item.observacao = item.status === 'ok' ? null : valor(c.observacao);
     return item;
   });
+  const ajustados = ajustarRegrasSus(campos);
+  let resumo = valor(obj.resumo) || '';
+  if (ajustados && campos.every((c) => c.status === 'ok')) resumo = 'Todos os campos conferem entre os documentos.';
   return {
     paciente: (valor(obj.paciente) || '').toUpperCase(),
     cns: String(valor(obj.cns) || '').replace(/\D/g, ''),
     campos,
-    resumo: valor(obj.resumo) || ''
+    resumo
   };
+}
+
+// ------------------------------------------------------------
+// REGRAS DO ESPELHO SUS (rede de segurança, caso a IA ainda marque)
+// ------------------------------------------------------------
+/** Maiúsculas, sem acento, sem pontuação, espaços simples */
+function simplificar(t) {
+  return String(t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9]+/g, ' ').trim();
+}
+
+/** "RUA DOS FLAMBOYANTS 1/99998" → "RUA DOS FLAMBOYANTS" (faixa de numeração do CEP no CADSUS) */
+export function tirarFaixaCep(logradouro) {
+  return String(logradouro || '').replace(/[\s,-]*\d+\s*\/\s*\d+\s*$/, '').trim();
+}
+
+/** "JD" abrevia "JARDIM": mesma 1ª letra e as letras aparecem na ordem (RES, RESID, PQ, VL…) */
+function abreviaPalavra(curta, longa) {
+  if (!curta || !longa || curta[0] !== longa[0]) return false;
+  if (longa.startsWith(curta)) return true;
+  if (/\d/.test(curta) || /\d/.test(longa)) return false;
+  let j = 0;
+  for (const ch of longa) { if (ch === curta[j]) j++; if (j === curta.length) return true; }
+  return false;
+}
+
+/**
+ * O texto do SUS é o dos outros documentos abreviado e/ou cortado no fim?
+ * "RESIDENCIAL DAS" / "RESID DAS PALMEIRAS" / "RES DAS PALMEIRAS" ≈ "RESIDENCIAL DAS PALMEIRAS"
+ */
+export function abreviadoOuCortado(sus, outro) {
+  const a = simplificar(sus).split(' ').filter(Boolean);
+  const b = simplificar(outro).split(' ').filter(Boolean);
+  if (!a.length || a.length > b.length) return false;
+  return a.every((p, i) => p === b[i] || abreviaPalavra(p, b[i]));
+}
+
+/** Os outros documentos (fora o SUS) concordam entre si? Devolve o valor, ou null. */
+function valorDosOutros(c) {
+  const outros = CONF_FONTES.filter((f) => f.chave !== 'sus').map((f) => c[f.chave]).filter(Boolean);
+  if (!outros.length) return null;
+  const base = simplificar(outros[0]);
+  return outros.every((v) => simplificar(v) === base) ? outros[0] : null;
+}
+
+/**
+ * Faixa do CEP no logradouro e bairro abreviado/cortado no espelho SUS não são erros.
+ * Muda o campo para "ok" quando só sobra essa diferença. Devolve true se mudou algo.
+ */
+export function ajustarRegrasSus(campos) {
+  const achar = (nome) => campos.find((c) => simplificar(c.campo) === nome);
+  const cep = achar('CEP');
+  const cepOk = !cep || cep.status === 'ok';
+  let mudou = false;
+  const conformar = (c) => { c.status = 'ok'; c.observacao = null; mudou = true; };
+
+  const log = achar('LOGRADOURO');
+  if (log && log.status !== 'ok' && log.sus && cepOk) {
+    const outros = valorDosOutros(log);
+    const susLimpo = tirarFaixaCep(log.sus);
+    if (outros && (simplificar(susLimpo) === simplificar(outros) || abreviadoOuCortado(susLimpo, outros))) conformar(log);
+  }
+
+  const bairro = achar('BAIRRO');
+  if (bairro && bairro.status !== 'ok' && bairro.sus) {
+    const outros = valorDosOutros(bairro);
+    if (outros && abreviadoOuCortado(bairro.sus, outros)) conformar(bairro);
+  }
+  return mudou;
 }
 
 export function contarStatus(campos) {
