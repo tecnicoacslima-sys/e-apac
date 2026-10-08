@@ -3,7 +3,8 @@
  * relatório antigo do Google Drive. Feito no navegador com pdf-lib.
  *
  * Uso: const bytes = await gerarPdfConferencia(window.PDFLib, conferencia, {
- *        unidade: { nome, municipio, uf }, emitidoEm: Date, brasao: { bytes, tipo } });
+ *        unidade: { nome, municipio, uf }, emitidoEm: Date, marca: { bytes, tipo } });
+ * marca = logo do APAC digital (PNG), no canto de cima à esquerda. Sem brasão da prefeitura.
  * conferencia = { paciente, cns, campos, resumo, fontes: ['sus','celk',…] }
  */
 import { textoSeguro } from './pdf-apac.js';
@@ -47,7 +48,7 @@ export async function gerarPdfConferencia(PDFLib, conf, opts = {}) {
 
   const doc = await PDFDocument.create();
   doc.setTitle('Conferência - ' + textoSeguro(conf.paciente || ''));
-  doc.setProducer('Geradora de APAC na nuvem');
+  doc.setProducer('APAC digital');
   doc.setCreator('apacdigital.com.br');
   const normal = await doc.embedFont(StandardFonts.Helvetica);
   const negrito = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -59,14 +60,11 @@ export async function gerarPdfConferencia(PDFLib, conf, opts = {}) {
   const COR_STATUS = { ok: rgb(0.1, 0.45, 0.2), divergente: rgb(0.72, 0.11, 0.11), atencao: rgb(0.6, 0.4, 0) };
   const FUNDO_STATUS = { divergente: rgb(0.984, 0.89, 0.89), atencao: rgb(0.992, 0.953, 0.855) };
 
-  let brasao = null;
-  if (opts.brasao && opts.brasao.bytes) {
-    try {
-      brasao = /png/i.test(opts.brasao.tipo || '') ? await doc.embedPng(opts.brasao.bytes) : await doc.embedJpg(opts.brasao.bytes);
-    } catch (e) {
-      try { brasao = await doc.embedPng(opts.brasao.bytes); } catch (e2) { brasao = null; }
-    }
+  let marca = null;
+  if (opts.marca && opts.marca.bytes) {
+    try { marca = await doc.embedPng(opts.marca.bytes); } catch (e) { marca = null; }
   }
+
 
   let page;
   let y;
@@ -90,15 +88,17 @@ export async function gerarPdfConferencia(PDFLib, conf, opts = {}) {
   const municipio = String(u.municipio || '').toUpperCase();
   const uf = String(u.uf || '').toUpperCase();
   const titulo = municipio ? 'PREFEITURA MUNICIPAL DE ' + municipio + (uf ? ' - ' + uf : '') : 'PREFEITURA MUNICIPAL';
-  const ALT_CAB = 58;
-  if (brasao) {
-    const esc = Math.min(54 / brasao.height, 70 / brasao.width);
-    const w = brasao.width * esc, hh = brasao.height * esc;
-    page.drawImage(brasao, { x: M, y: y - ALT_CAB + (ALT_CAB - hh) / 2, width: w, height: hh });
+  let ALT_CAB = 44;
+  if (marca) {
+    // logo do APAC digital numa faixa própria, acima do título (não encosta no texto)
+    const esc = Math.min(16 / marca.height, 104 / marca.width);
+    const w = marca.width * esc, hh = marca.height * esc;
+    page.drawImage(marca, { x: M, y: y - hh, width: w, height: hh });
+    y -= hh + 6;
   }
-  centralizar(titulo, y - 18, { fonte: negrito, tam: 12.5 });
-  centralizar('SECRETARIA MUNICIPAL DE SAÚDE — CONFERÊNCIA DE CADASTRO APAC', y - 34, { tam: 10, cor: CINZA });
-  y -= ALT_CAB + 4;
+  centralizar(titulo, y - 14, { fonte: negrito, tam: 12.5 });
+  centralizar('SECRETARIA MUNICIPAL DE SAÚDE — CONFERÊNCIA DE CADASTRO APAC', y - 30, { tam: 10, cor: CINZA });
+  y -= ALT_CAB;
   page.drawLine({ start: { x: M, y }, end: { x: X1, y }, thickness: 1.6, color: PRETO });
   y -= 16;
 

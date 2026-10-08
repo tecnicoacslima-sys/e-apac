@@ -207,16 +207,14 @@ async function comparar(botao) {
   carregarHistorico();
 }
 
-/** Dados da unidade + brasão para o PDF */
+/** Dados da unidade + logo do APAC digital para o PDF (sem brasão da prefeitura) */
 async function opcoesPdf(emitidoEm) {
   const u = dados.sessao.unidade;
   const op = { unidade: { nome: u.nome, municipio: u.municipio, uf: u.uf }, emitidoEm };
-  if (u.logo_path) {
-    try {
-      const blob = await dados.baixarArquivo('logos', u.logo_path);
-      op.brasao = { bytes: new Uint8Array(await blob.arrayBuffer()), tipo: blob.type || (/\.png$/i.test(u.logo_path) ? 'image/png' : 'image/jpeg') };
-    } catch (e) { /* sem brasão */ }
-  }
+  try {
+    const r = await fetch('img/logo-relatorio.png');
+    if (r.ok) op.marca = { bytes: new Uint8Array(await r.arrayBuffer()), tipo: 'image/png' };
+  } catch (e) { /* sem logo */ }
   return op;
 }
 

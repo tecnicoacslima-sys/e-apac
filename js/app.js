@@ -74,14 +74,14 @@ function montarEstrutura() {
   app.innerHTML = '';
   app.appendChild(h('header', { class: 'topo' },
     h('div', { class: 'marca' },
-      h('strong', null, '📋 Geradora de APAC'),
+      h('img', { class: 'logo-topo', src: 'img/logo-branca.svg', alt: 'APAC digital' }),
       h('span', { id: 'subtitulo-unidade' }, subtituloUnidade(u))),
     menu,
     h('div', { class: 'usuario' },
       h('span', null, p.nome || p.email),
       h('button', { type: 'button', onclick: async () => { await dados.sair(); } }, 'Sair'))));
   app.appendChild(h('main', { id: 'tela' }));
-  app.appendChild(h('footer', { class: 'rodape-site' }, 'apacdigital.com.br · Geradora de APAC Externa'));
+  app.appendChild(h('footer', { class: 'rodape-site' }, 'APAC digital · apacdigital.com.br'));
 }
 
 export function subtituloUnidade(u) {
@@ -114,7 +114,7 @@ async function abrirTelaDoEndereco() {
     area.innerHTML = '';
     telaAtual = modulo;
     await modulo.montar(area);
-    document.title = TELAS[chave].rotulo + ' · Geradora de APAC';
+    document.title = TELAS[chave].rotulo + ' · APAC digital';
   } catch (e) {
     console.error(e);
     area.innerHTML = '';
@@ -146,7 +146,7 @@ function mostrarLogin() {
         botao.textContent = 'Entrar';
       }
     } },
-    h('h1', null, '📋 Geradora de APAC'),
+    h('img', { class: 'logo-login', src: 'img/logo.svg', alt: 'APAC digital' }),
     h('p', { class: 'sub' }, 'Entre com o e-mail e a senha da sua unidade.'),
     h('div', { class: 'campo' }, h('label', { for: 'email' }, 'E-mail'), email),
     h('div', { class: 'campo' }, h('label', { for: 'senha' }, 'Senha'), senha),
@@ -200,7 +200,7 @@ function mostrarErroGeral(html, comSair) {
   app.innerHTML = '';
   app.appendChild(h('div', { class: 'login-fundo' },
     h('div', { class: 'login' },
-      h('h1', null, '📋 Geradora de APAC'),
+      h('img', { class: 'logo-login', src: 'img/logo.svg', alt: 'APAC digital' }),
       h('div', { class: 'msg aviso', html }),
       comSair ? h('button', { class: 'btn', onclick: () => dados.sair() }, 'Sair') : null)));
 }

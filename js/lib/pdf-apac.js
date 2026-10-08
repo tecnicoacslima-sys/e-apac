@@ -68,7 +68,7 @@ export async function gerarPdfApac(PDFLib, dados, opts = {}) {
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const doc = await PDFDocument.create();
   doc.setTitle('APAC - ' + textoSeguro(dados.nome_paciente || ''));
-  doc.setProducer('Geradora de APAC na nuvem');
+  doc.setProducer('APAC digital');
   doc.setCreator('apacdigital.com.br');
 
   const page = doc.addPage([LARG, ALT]);
