@@ -125,14 +125,50 @@ async function abrirTelaDoEndereco() {
 // ============================================================
 // LOGIN
 // ============================================================
+/**
+ * Moldura das telas de acesso (login, criar senha, avisos):
+ * faixa verde no alto, caixa central com o logo e o nome do sistema,
+ * área do formulário com fundo decorado e rodapé com os direitos.
+ */
+function telaAcesso(...conteudo) {
+  return h('div', { class: 'acesso' },
+    h('div', { class: 'acesso-caixa' },
+      h('div', { class: 'acesso-topo' },
+        h('img', { class: 'acesso-logo', src: 'img/logo.svg', alt: 'APAC digital' }),
+        h('div', { class: 'acesso-org' },
+          h('b', null, 'GERADORA DE APAC EXTERNA'),
+          h('span', null, 'Protocolo · Conferência de espelhos · SIGTAP'))),
+      h('div', { class: 'acesso-corpo' }, h('div', { class: 'acesso-conteudo' }, ...conteudo))),
+    h('div', { class: 'acesso-rodape' },
+      h('img', { src: 'img/icone.svg', alt: '' }),
+      h('div', null,
+        h('div', null, '© ' + new Date().getFullYear() + ' APAC digital. Todos os direitos reservados.'),
+        h('div', null, 'Geradora de APAC Externa na nuvem')),
+      h('div', { class: 'acesso-links' },
+        h('a', { href: 'https://apacdigital.com.br' }, 'apacdigital.com.br'))));
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
 function mostrarLogin() {
   window.removeEventListener('hashchange', abrirTelaDoEndereco);
   const email = h('input', { type: 'email', id: 'email', autocomplete: 'username', required: true });
   const senha = h('input', { type: 'password', id: 'senha', autocomplete: 'current-password', required: true });
   const status = h('div');
-  const botao = h('button', { class: 'btn principal', type: 'submit' }, 'Entrar');
+  const botao = h('button', { class: 'btn principal acesso-entrar', type: 'submit' }, 'ENTRAR');
 
-  const form = h('form', { class: 'login', onsubmit: async (e) => {
+  const esqueci = h('button', { class: 'btn link', type: 'button', onclick: async () => {
+    if (!email.value.trim()) { status.innerHTML = '<div class="msg aviso">Digite seu e-mail acima e clique de novo em "Esqueci minha senha".</div>'; return; }
+    try {
+      await dados.esqueciSenha(email.value);
+      status.innerHTML = '<div class="msg ok">Enviamos um link para ' + esc(email.value) + '. Abra o e-mail e siga o link para criar uma senha nova.</div>';
+    } catch (err) {
+      status.innerHTML = '<div class="msg erro">' + esc(err.message) + '</div>';
+    }
+  } }, 'Esqueci minha senha');
+
+  const form = h('form', { class: 'acesso-form', onsubmit: async (e) => {
       e.preventDefault();
       status.innerHTML = '';
       botao.disabled = true;
@@ -143,28 +179,17 @@ function mostrarLogin() {
       } catch (err) {
         status.innerHTML = '<div class="msg erro">' + esc(err.message) + '</div>';
         botao.disabled = false;
-        botao.textContent = 'Entrar';
+        botao.textContent = 'ENTRAR';
       }
     } },
-    h('img', { class: 'logo-login', src: 'img/logo.svg', alt: 'APAC digital' }),
-    h('p', { class: 'sub' }, 'Entre com o e-mail e a senha da sua unidade.'),
+    h('h1', null, '🔒 Acessar o sistema:'),
     h('div', { class: 'campo' }, h('label', { for: 'email' }, 'E-mail'), email),
     h('div', { class: 'campo' }, h('label', { for: 'senha' }, 'Senha'), senha),
-    status,
-    botao,
-    h('button', { class: 'btn link', type: 'button', style: { width: '100%', marginTop: '10px' }, onclick: async () => {
-      if (!email.value.trim()) { status.innerHTML = '<div class="msg aviso">Digite seu e-mail acima e clique de novo em "Esqueci minha senha".</div>'; return; }
-      try {
-        await dados.esqueciSenha(email.value);
-        status.innerHTML = '<div class="msg ok">Enviamos um link para ' + esc(email.value) + '. Abra o e-mail e siga o link para criar uma senha nova.</div>';
-      } catch (err) {
-        status.innerHTML = '<div class="msg erro">' + esc(err.message) + '</div>';
-      }
-    } }, 'Esqueci minha senha'),
-    h('div', { class: 'rodape' }, 'apacdigital.com.br'));
+    h('div', { class: 'acesso-acoes' }, botao, esqueci),
+    status);
 
   app.innerHTML = '';
-  app.appendChild(h('div', { class: 'login-fundo' }, form));
+  app.appendChild(telaAcesso(form));
   email.focus();
 }
 
@@ -172,7 +197,7 @@ function mostrarDefinirSenha(titulo) {
   const s1 = h('input', { type: 'password', autocomplete: 'new-password', minlength: 6 });
   const s2 = h('input', { type: 'password', autocomplete: 'new-password', minlength: 6 });
   const status = h('div');
-  const form = h('form', { class: 'login', onsubmit: async (e) => {
+  const form = h('form', { class: 'acesso-form', onsubmit: async (e) => {
       e.preventDefault();
       if (s1.value.length < 6) { status.innerHTML = '<div class="msg erro">A senha precisa ter pelo menos 6 caracteres.</div>'; return; }
       if (s1.value !== s2.value) { status.innerHTML = '<div class="msg erro">As duas senhas não são iguais.</div>'; return; }
@@ -185,30 +210,29 @@ function mostrarDefinirSenha(titulo) {
         status.innerHTML = '<div class="msg erro">' + esc(err.message) + '</div>';
       }
     } },
-    h('h1', null, titulo),
-    h('p', { class: 'sub' }, 'Escolha uma senha com pelo menos 6 caracteres.'),
+    h('h1', null, '🔑 ' + titulo),
+    h('p', { class: 'acesso-sub' }, 'Escolha uma senha com pelo menos 6 caracteres.'),
     h('div', { class: 'campo' }, h('label', null, 'Nova senha'), s1),
     h('div', { class: 'campo' }, h('label', null, 'Repita a senha'), s2),
-    status,
-    h('button', { class: 'btn principal', type: 'submit' }, 'Salvar senha e entrar'));
+    h('div', { class: 'acesso-acoes' }, h('button', { class: 'btn principal acesso-entrar', type: 'submit' }, 'SALVAR SENHA E ENTRAR')),
+    status);
   app.innerHTML = '';
-  app.appendChild(h('div', { class: 'login-fundo' }, form));
+  app.appendChild(telaAcesso(form));
   s1.focus();
 }
 
 function mostrarErroGeral(html, comSair) {
   app.innerHTML = '';
-  app.appendChild(h('div', { class: 'login-fundo' },
-    h('div', { class: 'login' },
-      h('img', { class: 'logo-login', src: 'img/logo.svg', alt: 'APAC digital' }),
+  app.appendChild(telaAcesso(
+    h('div', { class: 'acesso-form' },
       h('div', { class: 'msg aviso', html }),
       comSair ? h('button', { class: 'btn', onclick: () => dados.sair() }, 'Sair') : null)));
 }
 
 function mostrarFaltaConfig() {
   app.innerHTML = '';
-  app.appendChild(h('div', { class: 'login-fundo' },
-    h('div', { class: 'login' },
+  app.appendChild(telaAcesso(
+    h('div', { class: 'acesso-form' },
       h('h1', null, '⚙️ Falta um passo'),
       h('div', { class: 'msg info', html:
         'Abra o arquivo <b>config.js</b> (na mesma pasta deste site) e cole o <b>Project URL</b> e a ' +

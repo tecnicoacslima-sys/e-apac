@@ -259,3 +259,44 @@ a.btn { text-decoration: none; }
 .marca span { margin-top: 3px; }
 .login .logo-login { height: 46px; width: auto; display: block; margin: 0 auto 6px; }
 .login .sub { text-align: center; }
+
+/* ---------------- TELA DE ACESSO (login) ---------------- */
+.acesso { min-height: 100vh; background: #E9ECEA; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 40px 16px; position: relative; }
+.acesso::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 22px; background: var(--primaria);
+  border-bottom: 2px solid #fff; box-shadow: 0 2px 0 var(--secundaria); }
+.acesso-caixa { width: 100%; max-width: 940px; background: #fff; box-shadow: 0 6px 24px rgba(19, 38, 27, .10); }
+.acesso-topo { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 24px;
+  background: linear-gradient(#FFFFFF, #F4F7F5); border-bottom: 1px solid #E1E8E3; flex-wrap: wrap; }
+.acesso-logo { height: 40px; width: auto; display: block; }
+.acesso-org { text-align: right; line-height: 1.35; color: #3A4A40; letter-spacing: .4px; }
+.acesso-org b { display: block; font-size: 15px; color: var(--texto); }
+.acesso-org span { font-size: 13px; }
+.acesso-corpo { min-height: 300px; padding: 30px 32px 34px;
+  background:
+    linear-gradient(115deg, rgba(255,255,255,1) 0%, rgba(255,255,255,1) 45%, rgba(255,255,255,0) 72%),
+    linear-gradient(135deg, transparent 0 40%, rgba(46,125,79,.07) 40% 52%, transparent 52% 100%),
+    linear-gradient(45deg, transparent 0 55%, rgba(46,125,79,.08) 55% 70%, transparent 70% 100%),
+    linear-gradient(160deg, transparent 0 62%, rgba(242,165,65,.10) 62% 74%, transparent 74% 100%),
+    linear-gradient(90deg, #FFFFFF 40%, #DDF3E6 100%); }
+.acesso-conteudo { max-width: 440px; }
+.acesso-form h1 { font-size: 19px; color: var(--texto); margin-bottom: 16px; }
+.acesso-form .campo { margin-bottom: 10px; }
+.acesso-form .campo label { text-transform: none; font-size: 13px; letter-spacing: 0; color: #3A4A40; font-weight: 500; }
+.acesso-form input { border-radius: 3px; }
+.acesso-sub { color: var(--rotulo); margin: -8px 0 14px; font-size: 13px; }
+.acesso-acoes { display: flex; align-items: center; gap: 14px; margin: 6px 0 10px; flex-wrap: wrap; }
+.acesso-entrar { border-radius: 3px; padding: 8px 22px; font-weight: 700; letter-spacing: .5px; }
+.acesso-acoes .btn.link { padding: 0; }
+.acesso-rodape { width: 100%; max-width: 940px; display: flex; align-items: center; gap: 12px; padding: 14px 6px;
+  font-size: 12.5px; color: #4B5A51; line-height: 1.5; }
+.acesso-rodape img { height: 30px; width: 30px; opacity: .85; }
+.acesso-links { margin-left: auto; display: flex; gap: 18px; }
+.acesso-links a { color: var(--primaria); text-decoration: none; }
+.acesso-links a:hover { text-decoration: underline; }
+@media (max-width: 640px) {
+  .acesso-org { text-align: left; }
+  .acesso-corpo { padding: 22px 18px; }
+  .acesso-links { margin-left: 0; }
+  .acesso-rodape { flex-wrap: wrap; }
+}
