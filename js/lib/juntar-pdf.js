@@ -60,10 +60,19 @@ export async function juntarPdfs(PDFLib, itens, opts = {}) {
   return await saida.save();
 }
 
-/** Nome do arquivo: 2026-10-08_NOME_DO_PACIENTE_DOCUMENTOS.pdf */
+const LIGACOES = new Set(['DE', 'DA', 'DO', 'DAS', 'DOS', 'E', 'D']);
+
+/** "Bianca Oliveira Rodrigues de Almeida" → "BIANCA_ALMEIDA" (1º nome + último sobrenome) */
+export function nomeSobrenome(paciente) {
+  const partes = String(paciente || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').split(/\s+/).filter((p) => p && !LIGACOES.has(p));
+  if (!partes.length) return '';
+  return partes.length === 1 ? partes[0] : partes[0] + '_' + partes[partes.length - 1];
+}
+
+/** Nome do arquivo: espelhos+docs+res_BIANCA_ALMEIDA_08-10-2026.pdf */
 export function nomePdfUnico(paciente, data = new Date()) {
-  const d = data.getFullYear() + '-' + String(data.getMonth() + 1).padStart(2, '0') + '-' + String(data.getDate()).padStart(2, '0');
-  const nome = String(paciente || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  return d + '_' + (nome ? nome + '_' : '') + 'DOCUMENTOS.pdf';
+  const d = String(data.getDate()).padStart(2, '0') + '-' + String(data.getMonth() + 1).padStart(2, '0') + '-' + data.getFullYear();
+  const nome = nomeSobrenome(paciente);
+  return 'espelhos+docs+res_' + (nome ? nome + '_' : '') + d + '.pdf';
 }

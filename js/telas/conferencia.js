@@ -26,6 +26,7 @@ let zonas = {};
 let areaResultado = null;
 let areaHistorico = null;
 let campoBusca = null;
+let ultimoPaciente = '';   // nome do paciente da última comparação (para o nome do PDF único)
 
 const ESTILO = `
 .conf-fontes { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
@@ -78,7 +79,7 @@ export async function montar(area) {
         h('div', { class: 'botoes', style: { marginTop: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap' } },
           botaoComparar,
           h('button', { type: 'button', class: 'btn', title: 'SUS → CELK → documento → comprovante, num PDF só (não usa IA)',
-            onclick: (e) => juntarDocumentos(e.currentTarget, null) }, '📎 Juntar em PDF único'),
+            onclick: (e) => juntarDocumentos(e.currentTarget, ultimoPaciente) }, '📎 Juntar em PDF único'),
           h('button', { type: 'button', class: 'btn', onclick: limparSelecao }, 'Limpar escolha')),
         areaResultado)),
     h('section', { class: 'card' },
@@ -106,6 +107,7 @@ function caixaFonte(f) {
     const novos = Array.from(arquivos || []);
     if (!novos.length) return;
     selecao[f.chave] = selecao[f.chave].concat(novos).slice(0, CONF.MAX_ARQUIVOS_FONTE);
+    ultimoPaciente = '';
     if (selecao[f.chave].length < novos.length) toast('Cabem até ' + CONF.MAX_ARQUIVOS_FONTE + ' arquivos por documento.', f.label, 'aviso');
     desenhar();
   };
@@ -113,7 +115,7 @@ function caixaFonte(f) {
     lista.innerHTML = '';
     selecao[f.chave].forEach((a, i) => lista.appendChild(h('li', null,
       h('span', null, a.name),
-      h('button', { type: 'button', title: 'Tirar este arquivo', onclick: () => { selecao[f.chave].splice(i, 1); desenhar(); } }, '×'))));
+      h('button', { type: 'button', title: 'Tirar este arquivo', onclick: () => { selecao[f.chave].splice(i, 1); ultimoPaciente = ''; desenhar(); } }, '×'))));
     caixa.classList.toggle('tem', selecao[f.chave].length > 0);
   };
   input.addEventListener('change', () => { adicionar(input.files); input.value = ''; });
@@ -125,6 +127,7 @@ function caixaFonte(f) {
 }
 
 function limparSelecao() {
+  ultimoPaciente = '';
   CONF_FONTES.forEach((f) => { selecao[f.chave] = []; zonas[f.chave].desenhar(); });
   areaResultado.innerHTML = '';
 }
@@ -233,16 +236,42 @@ async function juntarDocumentos(botao, paciente) {
     alerta('Falta algo', 'Escolha os arquivos nas caixas acima (SUS, CELK, documento, comprovante de endereço).');
     return;
   }
+  if (!paciente) { perguntarNome(botao); return; }
   try {
     await comCarregando(botao, 'Juntando…', async () => {
       const itens = await arquivosParaItens(arquivos);
-      const bytes = await juntarPdfs(window.PDFLib, itens, { titulo: (paciente || 'Documentos') + ' — documentos' });
+      const bytes = await juntarPdfs(window.PDFLib, itens, { titulo: paciente + ' — espelhos + documentos + residência' });
       baixarPdf(bytes, nomePdfUnico(paciente));
       toast(itens.length + ' arquivo(s) juntados: SUS → CELK → documento → comprovante.', '📎 Pronto');
     });
   } catch (e) {
     alerta('Não consegui juntar', esc(e.message));
   }
+}
+
+/** Sem comparação ainda: pergunta o nome do paciente para dar nome ao arquivo. */
+function perguntarNome(botao) {
+  const campo = h('input', { placeholder: 'ex.: Bianca Almeida', style: { width: '100%' } });
+  const previa = h('div', { class: 'pequeno mudo', style: { marginTop: '6px' } });
+  const atualizar = () => { previa.textContent = 'Arquivo: ' + nomePdfUnico(campo.value || ''); };
+  campo.addEventListener('input', atualizar);
+  atualizar();
+  const seguir = (fechar) => {
+    const nome = String(campo.value || '').trim();
+    fechar();
+    juntarDocumentos(botao, nome || ' ');
+  };
+  const m = modal({
+    titulo: '📎 Nome do paciente',
+    conteudo: h('div', null,
+      h('p', { style: { marginTop: '0' } }, 'Digite o nome e o sobrenome do paciente para dar nome ao arquivo (pode deixar em branco).'),
+      campo, previa),
+    botoes: [
+      { texto: '📎 Juntar e baixar', classe: 'principal', acao: seguir },
+      { texto: 'Cancelar' }
+    ]
+  });
+  campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') seguir(m.fechar); });
 }
 
 // ============================================================
@@ -278,6 +307,7 @@ function tabelaCampos(conf) {
 }
 
 function mostrarResultado(conf, bytes) {
+  ultimoPaciente = conf.paciente || '';
   areaResultado.innerHTML = '';
   const n = contarStatus(conf.campos);
   const tipoMsg = n.divergente ? 'erro' : (n.atencao ? 'aviso' : 'ok');
