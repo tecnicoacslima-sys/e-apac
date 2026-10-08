@@ -144,7 +144,7 @@ function telaAcesso(...conteudo) {
       h('img', { src: 'img/icone.svg', alt: '' }),
       h('div', null,
         h('div', null, '© ' + new Date().getFullYear() + ' APAC digital. Todos os direitos reservados.'),
-        h('div', null, 'Geradora de APAC Externa na nuvem')),
+        h('div', null, 'Geradora de APAC Externa online')),
       h('div', { class: 'acesso-links' },
         h('a', { href: 'https://apacdigital.com.br' }, 'apacdigital.com.br'))));
 }
