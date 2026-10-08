@@ -15,6 +15,7 @@ const TELAS = {
   cadastros:   { rotulo: 'Cadastros',   carregar: () => import('./telas/cadastros.js') },
   ferramentas: { rotulo: 'Ferramentas', carregar: () => import('./telas/ferramentas.js') },
   importar:    { rotulo: 'Importar',    carregar: () => import('./telas/importar.js'), escondido: true },
+  juntar:      { rotulo: 'Juntar PDFs', carregar: () => import('./telas/juntar-pdf.js'), escondido: true },
   admin:       { rotulo: 'Admin',       carregar: () => import('./telas/admin.js'), soAdmin: true }
 };
 

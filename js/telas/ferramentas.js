@@ -2,7 +2,7 @@
  * FERRAMENTAS (antes: menu 📋 APAC ▸ 🔧 Ferramentas)
  *   📊 Consumo da IA · 🔌 Testar acesso à IA · 🪪 Conferir Cartões SUS
  *   ✏️ Dados da unidade (+ brasão) · 📥 Importar planilha antiga
- *   📥 Atualizar tabela SIGTAP (.zip) — só o administrador
+ *   📎 Juntar PDFs · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador
  */
 import * as dados from '../dados.js';
 import { h, toast, comCarregando, listaHtml, alerta } from '../ui.js';
@@ -16,7 +16,7 @@ export async function montar(area) {
   area.append(
     h('div', { class: 'titulo-tela' }, h('div', null, h('h1', null, '🔧 Ferramentas'))),
     h('div', { class: 'grade-cards' },
-      cartaoConsumo(), cartaoUnidade(), cartaoCartoes(), cartaoTesteIA(),
+      cartaoConsumo(), cartaoJuntar(), cartaoUnidade(), cartaoCartoes(), cartaoTesteIA(),
       dados.souAdmin() ? cartaoSigtap() : null, cartaoImportar()));
 }
 
@@ -55,6 +55,15 @@ function cartaoConsumo() {
   carregar();
   return h('section', { class: 'card' }, h('h2', null, '📊 Consumo da IA'),
     h('div', { class: 'card-conteudo' }, h('div', { class: 'campo' }, h('label', null, 'Mês'), mes), saida));
+}
+
+// ---------------- 📎 JUNTAR PDFs ----------------
+function cartaoJuntar() {
+  return h('section', { class: 'card' }, h('h2', null, '📎 Juntar PDFs'),
+    h('div', { class: 'card-conteudo' },
+      h('p', { style: { marginTop: '0' } }, 'Junta vários PDFs e fotos (JPG/PNG) num arquivo só — ex.: espelho SUS + CELK + documento + comprovante de residência.'),
+      h('p', { class: 'pequeno mudo' }, '🔒 Feito no seu computador: nada é enviado para sites de fora e não gasta IA.'),
+      h('a', { class: 'btn principal', href: '#/juntar' }, '📎 Abrir Juntar PDFs')));
 }
 
 // ---------------- ✏️ DADOS DA UNIDADE ----------------

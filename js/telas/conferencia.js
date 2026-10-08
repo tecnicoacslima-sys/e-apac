@@ -18,6 +18,8 @@ import {
   fontesDaConferencia, caminhoRelatorio
 } from '../lib/conferencia.js';
 import { gerarPdfConferencia } from '../lib/pdf-conferencia.js';
+import { juntarPdfs, nomePdfUnico } from '../lib/juntar-pdf.js';
+import { arquivosParaItens } from './juntar-pdf.js';
 
 let selecao = {};
 let zonas = {};
@@ -75,6 +77,8 @@ export async function montar(area) {
         h('div', { class: 'conf-fontes' }, ...CONF_FONTES.map(caixaFonte)),
         h('div', { class: 'botoes', style: { marginTop: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap' } },
           botaoComparar,
+          h('button', { type: 'button', class: 'btn', title: 'SUS → CELK → documento → comprovante, num PDF só (não usa IA)',
+            onclick: (e) => juntarDocumentos(e.currentTarget, null) }, '📎 Juntar em PDF único'),
           h('button', { type: 'button', class: 'btn', onclick: limparSelecao }, 'Limpar escolha')),
         areaResultado)),
     h('section', { class: 'card' },
@@ -219,6 +223,29 @@ async function opcoesPdf(emitidoEm) {
 }
 
 // ============================================================
+// 📎 JUNTAR EM PDF ÚNICO (sem IA, feito no navegador)
+// Só os documentos (o relatório NÃO entra), sempre nesta ordem:
+// 1º espelho SUS · 2º espelho CELK · 3º documento · 4º comprovante de endereço
+// ============================================================
+async function juntarDocumentos(botao, paciente) {
+  const arquivos = CONF_FONTES.flatMap((f) => selecao[f.chave]);
+  if (!arquivos.length) {
+    alerta('Falta algo', 'Escolha os arquivos nas caixas acima (SUS, CELK, documento, comprovante de endereço).');
+    return;
+  }
+  try {
+    await comCarregando(botao, 'Juntando…', async () => {
+      const itens = await arquivosParaItens(arquivos);
+      const bytes = await juntarPdfs(window.PDFLib, itens, { titulo: (paciente || 'Documentos') + ' — documentos' });
+      baixarPdf(bytes, nomePdfUnico(paciente));
+      toast(itens.length + ' arquivo(s) juntados: SUS → CELK → documento → comprovante.', '📎 Pronto');
+    });
+  } catch (e) {
+    alerta('Não consegui juntar', esc(e.message));
+  }
+}
+
+// ============================================================
 // RESULTADO NA TELA
 // ============================================================
 function contadores(campos) {
@@ -264,6 +291,8 @@ function mostrarResultado(conf, bytes) {
       h('button', { type: 'button', class: 'btn principal',
         onclick: () => abrirPdfGuardado(() => dados.linkTemporario('relatorios', conf.relatorio_path, 600), bytes) }, '🖨️ Abrir relatório em PDF'),
       h('button', { type: 'button', class: 'btn', onclick: () => baixarPdf(bytes, nomeRelatorio(conf)) }, '⬇️ Baixar PDF'),
+      h('button', { type: 'button', class: 'btn', title: 'SUS → CELK → documento → comprovante, num PDF só (sem o relatório)',
+        onclick: (e) => juntarDocumentos(e.currentTarget, conf.paciente) }, '📎 Juntar documentos em PDF único'),
       h('button', { type: 'button', class: 'btn', onclick: limparSelecao }, '➕ Nova conferência')),
     tabelaCampos(conf));
 }
