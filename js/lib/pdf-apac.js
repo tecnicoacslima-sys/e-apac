@@ -284,12 +284,12 @@ export async function gerarPdfApac(PDFLib, dados, opts = {}) {
   campo(518, t, L1, '17 - QTDE', v('proc_qtd'), { alinhar: 'center' });
   t += PASSO;
 
-  // ---------------- 4. SECUNDÁRIOS (só as linhas usadas; no mínimo 1) ----------------
+  // ---------------- 4. SECUNDÁRIOS (no mínimo 3 linhas; até 5 se usadas) ----------------
   faixa(t, 'PROCEDIMENTO(S) SECUNDÁRIO(S)');
   t += 20;
-  let usados = 1;
+  let usados = 3;                     // sempre 3 linhas (sobra espaço para completar à mão)
   for (let n = 1; n <= 5; n++) {
-    if (soDigitos(dados['sec' + n + '_codigo']) || textoSeguro(dados['sec' + n + '_nome'])) usados = n;
+    if (soDigitos(dados['sec' + n + '_codigo']) || textoSeguro(dados['sec' + n + '_nome'])) usados = Math.max(usados, n);
   }
   for (let n = 1; n <= usados; n++) {
     const b = 18 + (n - 1) * 3;
