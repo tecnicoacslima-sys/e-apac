@@ -1,6 +1,6 @@
 {
- "versao": "20261009T1853",
- "gerado": "2026-10-09T18:53:36.078Z",
+ "versao": "20261009T2230",
+ "gerado": "2026-10-09T22:30:23.936Z",
  "arquivos": [
   "config.js",
   "css/app.css",
@@ -20,6 +20,7 @@
   "js/lib/pdf-fatura.js",
   "js/lib/pdf-texto.js",
   "js/lib/qr.js",
+  "js/lib/relatorio-gmus.js",
   "js/lib/sigtap-zip.js",
   "js/lib/sigtap.js",
   "js/lib/texto.js",
@@ -31,6 +32,7 @@
   "js/telas/atualizar-sigtap.js",
   "js/telas/cadastros.js",
   "js/telas/conferencia.js",
+  "js/telas/exemplos.js",
   "js/telas/ferramentas.js",
   "js/telas/importar.js",
   "js/telas/juntar-pdf.js",

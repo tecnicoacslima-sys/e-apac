@@ -17,6 +17,7 @@ import { interpretarTextoEspelho, leituraSuficiente, nomeValido, camposFaltantes
 import { PROMPT_LAUDO, buscarProcedimento, compararComReferencia, sugestaoParaFormulario } from '../lib/sigtap.js';
 import { gerarPdfApac } from '../lib/pdf-apac.js';
 import { matrizQr, novoCodigoVerificacao, urlVerificacao } from '../lib/qr.js';
+import { PROMPT_GMUS, interpretarRelatorioGmus, aplicarRelatorioGmus, mesmoPaciente, CAMPOS_FIXOS } from '../lib/relatorio-gmus.js';
 import { abrirBuscaSigtap } from './sigtap.js';
 
 const LIMITE_PDF_MB = 22;   // a IA aceita ~32 MB por pedido; o base64 aumenta ~33%
@@ -373,6 +374,8 @@ function montarPainel() {
         h('hr', { class: 'divisor' }),
         botao('laranja', '1', 'Selecionar Espelho CELK', 'Cadastra o paciente a partir do PDF', passo1Espelho),
         botao('azul', '2', 'Buscar dados da APAC', 'Lê o laudo com IA e confere o código', passo2BuscarDados),
+        h('button', { type: 'button', class: 'acao-extra azul', title: 'Lê só Data de entrada, Observações, Unidade e Profissional solicitante do relatório do G-MUS',
+          onclick: () => lerRelatorioGmus() }, '📋 Ler relatório G-MUS (4 campos)'),
         botao('verde', '3', 'Gerar APAC em PDF', 'Confere os campos e gera o laudo', (b) => passo3GerarPdf(b, false)),
         h('button', { type: 'button', class: 'acao-extra', title: 'Gera a APAC com QR Code de verificação e o carimbo/assinatura do profissional',
           onclick: (e) => passo3GerarPdf(e.currentTarget, true) }, '🔳 ✍️ Gerar com QR Code e assinatura'),
@@ -633,6 +636,142 @@ function mostrarResultadoLaudo(r, resultado, janela, zona) {
     });
   }
   janela.definirBotoes(botoes);
+}
+
+// ============================================================
+// 📋 RELATÓRIO G-MUS → só 4 campos (data, observações, unidade, profissional)
+// ============================================================
+const CHAVE_FIXO = 'apac.procedimentoFixoGmus';
+function lerFixo() { try { return JSON.parse(localStorage.getItem(CHAVE_FIXO) || 'null'); } catch (e) { return null; } }
+function gravarFixo(v) { try { if (v) localStorage.setItem(CHAVE_FIXO, JSON.stringify(v)); else localStorage.removeItem(CHAVE_FIXO); } catch (e) { /* tudo bem */ } }
+
+/** Foto grande → JPEG menor para a IA (a leitura fica igual e gasta menos). */
+async function imagemParaIA(arquivo) {
+  const img = await createImageBitmap(arquivo);
+  const escala = Math.min(1, 1800 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.88).split(',')[1];
+}
+
+function lerRelatorioGmus() {
+  let arquivo = null;
+  const status = h('div');
+  const resultado = h('div');
+  const zona = zonaArquivo({ aceitar: 'application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png',
+    texto: 'Escolha o relatório do G-MUS (PDF ou foto)', aoEscolher: (a) => { arquivo = a; status.innerHTML = ''; } });
+
+  // procedimento fixo (para lotes do mesmo procedimento)
+  const fixoSalvo = lerFixo();
+  const usarFixo = h('input', { type: 'checkbox' });
+  usarFixo.checked = !!fixoSalvo;
+  const textoFixo = h('span', null);
+  const descreverFixo = () => {
+    const f = lerFixo();
+    const atual = String(form.proc_codigo || '').trim() ? form : f;
+    textoFixo.textContent = atual && String(atual.proc_codigo || '').trim()
+      ? 'Lembrar procedimento, código e CID para os próximos relatórios (' + (atual.proc_codigo || '') + ' · ' + (atual.proc_nome || '') + (atual.cid_principal ? ' · CID ' + atual.cid_principal : '') + ')'
+      : 'Lembrar procedimento, código e CID para os próximos relatórios (preencha-os uma vez no formulário)';
+  };
+  descreverFixo();
+
+  const janela = modal({
+    titulo: '📋 Ler relatório G-MUS',
+    largura: 640,
+    conteudo: h('div', null,
+      h('p', { class: 'pequeno mudo', style: { marginTop: 0 } },
+        'Preenche só: Data da solicitação, Observações, Estabelecimento e Profissional solicitante (APAC externa). ',
+        'Paciente, procedimento, código e CID não são alterados.'),
+      zona, status, resultado,
+      h('label', { class: 'assinatura-autorizo', style: { marginTop: '10px' } }, usarFixo, textoFixo)),
+    botoes: [
+      { texto: 'Fechar' },
+      { texto: 'Ler relatório', classe: 'principal', acao: async () => {
+        if (!arquivo) { status.innerHTML = '<div class="msg aviso">Escolha o relatório primeiro.</div>'; return; }
+        const btn = janela.el.querySelector('.modal-rodape .principal');
+        await comCarregando(btn, 'Lendo com IA…', () => lerArquivoGmus(arquivo, status, resultado, zona, janela, usarFixo));
+      } }
+    ]
+  });
+}
+
+async function lerArquivoGmus(arquivo, status, resultado, zona, janela, usarFixo) {
+  status.innerHTML = '';
+  try {
+    if (arquivo.size > LIMITE_PDF_MB * 1024 * 1024) throw new Error('O arquivo passa de ' + LIMITE_PDF_MB + ' MB.');
+    const ehPdf = /pdf$/i.test(arquivo.type) || /\.pdf$/i.test(arquivo.name);
+    const bloco = ehPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: await lerArquivoBase64(arquivo) }, title: 'Relatório G-MUS' }
+      : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: await imagemParaIA(arquivo) } };
+    const r = await dados.chamarIA({
+      funcao: 'GMUS', system: PROMPT_GMUS, maxTokens: 1500,
+      content: [bloco, { type: 'text', text: 'Extraia os campos conforme instruído.' }]
+    });
+    if (r.parou === 'max_tokens') throw new Error('A resposta da IA foi cortada. Tente de novo.');
+    const g = interpretarRelatorioGmus(dados.interpretarJsonIA(r.texto));
+    if (!g.dataSolicitacao && !g.observacoes && !g.estabelecimentoSolicitante && !g.medicoSolicitante) {
+      throw new Error('Não encontrei os campos neste arquivo. Confira se é a tela "Detalhes do Registro" do G-MUS.');
+    }
+    mostrarResultadoGmus(g, resultado, zona, janela, usarFixo);
+  } catch (e) {
+    status.innerHTML = '<div class="msg erro">❌ ' + esc(e.message) + '</div>';
+  }
+}
+
+function mostrarResultadoGmus(g, resultado, zona, janela, usarFixo) {
+  zona.style.display = 'none';
+  const ent = {
+    dataSolicitacao: h('input', { value: g.dataSolicitacao, maxlength: 10 }),
+    observacoes: h('textarea', { rows: 4, style: { width: '100%' } }, g.observacoes),
+    estabelecimentoSolicitante: h('input', { value: g.estabelecimentoSolicitante }),
+    medicoSolicitante: h('input', { value: g.medicoSolicitante })
+  };
+  ent.observacoes.value = g.observacoes;
+  const campo = (rot, el) => h('div', { class: 'campo' }, h('label', null, rot), el);
+  const pacienteForm = String(form.nome_paciente || '').trim();
+  const confere = mesmoPaciente(g.paciente, pacienteForm);
+  resultado.innerHTML = '';
+  resultado.append(
+    !pacienteForm
+      ? h('div', { class: 'msg aviso' }, '⚠️ Nenhum paciente carregado no formulário. Relatório de: ' + (g.paciente || '—') + '. Carregue o paciente (botão ① ou busca) antes de gerar a APAC.')
+      : confere
+        ? h('div', { class: 'msg ok' }, '✅ Relatório de ' + (g.paciente || pacienteForm) + ' — confere com o paciente do formulário.')
+        : h('div', { class: 'msg erro' }, '❌ ATENÇÃO: o relatório é de ' + (g.paciente || '—') + ', mas o formulário está com ' + pacienteForm + '. Confira antes de preencher.'),
+    h('p', { class: 'pequeno mudo' }, 'Confira e corrija se precisar:'),
+    h('div', { class: 'form-simples' },
+      campo('Data da solicitação (Data de entrada)', ent.dataSolicitacao),
+      campo('Estabelecimento solicitante', ent.estabelecimentoSolicitante),
+      campo('Profissional solicitante', ent.medicoSolicitante)),
+    campo('Observações (Motivo / Observações gerais)', ent.observacoes));
+
+  const preencher = (fechar) => {
+    const v = {};
+    Object.keys(ent).forEach((k) => { v[k] = ent[k].value.trim(); });
+    if (v.dataSolicitacao && !/^\d{2}\/\d{2}\/\d{4}$/.test(v.dataSolicitacao)) { toast('Data no formato dd/mm/aaaa.', 'Atenção', 'aviso'); return; }
+    aplicarRelatorioGmus(form, { ...v, observacoes: v.observacoes.toUpperCase(),
+      estabelecimentoSolicitante: v.estabelecimentoSolicitante.toUpperCase(), medicoSolicitante: v.medicoSolicitante.toUpperCase() });
+    // procedimento fixo: guarda o do formulário ou reaproveita o guardado
+    if (usarFixo.checked) {
+      if (String(form.proc_codigo || '').trim()) {
+        const f = {}; CAMPOS_FIXOS.forEach((k) => { f[k] = form[k] || ''; }); gravarFixo(f);
+      } else {
+        const f = lerFixo();
+        if (f) CAMPOS_FIXOS.forEach((k) => { if (!String(form[k] || '').trim() && f[k]) form[k] = f[k]; });
+      }
+    } else gravarFixo(null);
+    preencherEntradas();
+    atualizarResumo();
+    salvarDepois();
+    fechar();
+    toast('Data, observações, estabelecimento e profissional preenchidos.', '📋 Relatório G-MUS');
+  };
+  janela.definirBotoes([
+    { texto: 'Ler outro', acao: (fechar) => { fechar(); lerRelatorioGmus(); } },
+    { texto: confere ? '🖊️ Preencher formulário' : '⚠️ Preencher mesmo assim', classe: confere ? 'principal' : 'laranja', acao: preencher }
+  ]);
 }
 
 // ============================================================

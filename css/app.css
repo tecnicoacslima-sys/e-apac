@@ -122,6 +122,8 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
   background: #fff; color: var(--verde); border: 1.5px solid var(--verde); font-weight: 700; font-size: 12.5px;
 }
 .acao-extra:hover { background: #EEF7F1; }
+.acao-extra.azul { color: var(--azul); border-color: var(--azul); }
+.acao-extra.azul:hover { background: #EEF3FA; }
 .acao-extra:disabled { opacity: .55; cursor: wait; }
 .assinatura-previa { border: 1px dashed #C9D3DE; border-radius: 8px; min-height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px;
   background-color: #fff; background-image: linear-gradient(45deg, #F3F5F4 25%, transparent 25%, transparent 75%, #F3F5F4 75%), linear-gradient(45deg, #F3F5F4 25%, transparent 25%, transparent 75%, #F3F5F4 75%);
