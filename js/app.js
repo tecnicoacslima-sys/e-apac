@@ -5,6 +5,7 @@
 import * as dados from './dados.js';
 import { h, toast } from './ui.js';
 import { esc } from './lib/texto.js';
+import { vigiarVersao } from './lib/versao.js';
 
 const TELAS = {
   apac:        { rotulo: 'APAC',        carregar: () => import('./telas/apac.js') },
@@ -242,3 +243,4 @@ function mostrarFaltaConfig() {
 }
 
 iniciar().catch((e) => mostrarErroGeral('Erro ao abrir: ' + esc(e.message)));
+vigiarVersao();

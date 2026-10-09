@@ -313,3 +313,13 @@ a.btn { text-decoration: none; }
   .acesso-links { margin-left: 0; }
   .acesso-rodape { flex-wrap: wrap; }
 }
+
+/* 🔄 aviso de versão nova */
+.faixa-versao { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 3000;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+  background: #13261B; color: #fff; padding: 10px 14px 10px 18px; border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.28); border-left: 5px solid var(--destaque); font-size: 14px; max-width: calc(100vw - 24px); }
+.faixa-versao-dica { opacity: .75; font-size: 12.5px; }
+.faixa-versao-botao { background: var(--destaque); color: #13261B; border: 0; border-radius: 6px; padding: 7px 14px; font-weight: 700; cursor: pointer; }
+.faixa-versao-botao:disabled { opacity: .7; cursor: wait; }
+.faixa-versao-fechar { background: none; border: 0; color: #fff; opacity: .7; font-size: 20px; cursor: pointer; line-height: 1; }

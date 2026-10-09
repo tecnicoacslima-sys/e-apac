@@ -301,3 +301,34 @@ export async function inserirEmLotes(tabela, linhas, { lote = 500, aoAvancar, up
 export async function lerTodas(tabela, colunas) {
   return todas(() => sb.from(tabela).select(colunas));
 }
+
+// ---------------- 💾 CÓPIA DE SEGURANÇA ----------------
+/** Tabelas da unidade que entram na cópia (rótulo = nome da aba no Excel) */
+export const TABELAS_COPIA = [
+  { tabela: 'pacientes',         rotulo: 'Pacientes' },
+  { tabela: 'protocolo',         rotulo: 'Protocolo' },
+  { tabela: 'apacs',             rotulo: 'APACs geradas' },
+  { tabela: 'conferencias',      rotulo: 'Conferências' },
+  { tabela: 'profissionais',     rotulo: 'Profissionais' },
+  { tabela: 'estabelecimentos',  rotulo: 'Estabelecimentos' },
+  { tabela: 'referencia_sigtap', rotulo: 'Referência SIGTAP' },
+  { tabela: 'sugestoes_sigtap',  rotulo: 'Sugestões SIGTAP' },
+  { tabela: 'uso_ia',            rotulo: 'Consumo IA' }
+];
+
+/** Lê todas as linhas de cada tabela, só da unidade de quem está logado. */
+export async function lerCopiaDeSeguranca(aoProgredir) {
+  const uid = sessao.unidade.id;
+  const resultado = [];
+  for (const t of TABELAS_COPIA) {
+    if (aoProgredir) aoProgredir(t.rotulo);
+    try {
+      const linhas = await todas(() => sb.from(t.tabela).select('*').eq('unidade_id', uid).order('id'));
+      resultado.push({ ...t, linhas });
+    } catch (e) {
+      resultado.push({ ...t, linhas: [], erro: e.message });
+    }
+  }
+  return resultado;
+}
+

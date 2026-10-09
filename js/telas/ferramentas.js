@@ -2,7 +2,7 @@
  * FERRAMENTAS (antes: menu 📋 APAC ▸ 🔧 Ferramentas)
  *   📊 Consumo da IA · 🔌 Testar acesso à IA · 🪪 Conferir Cartões SUS
  *   ✏️ Dados da unidade (+ brasão) · 📥 Importar planilha antiga
- *   📎 Juntar PDFs · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador
+ *   📎 Juntar PDFs · 💾 Cópia de segurança · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador
  */
 import * as dados from '../dados.js';
 import { h, toast, comCarregando, listaHtml, alerta } from '../ui.js';
@@ -11,12 +11,13 @@ import { motivoCNSInvalido, validarCPF, soDigitos } from '../lib/validacao.js';
 import { atualizarSubtitulo } from '../app.js';
 import { abrirAtualizarSigtap } from './atualizar-sigtap.js';
 import { rotuloCompetencia } from '../lib/sigtap-zip.js';
+import { montarPlanilhaCopia, nomeArquivoCopia } from '../lib/copia.js';
 
 export async function montar(area) {
   area.append(
     h('div', { class: 'titulo-tela' }, h('div', null, h('h1', null, '🔧 Ferramentas'))),
     h('div', { class: 'grade-cards' },
-      cartaoConsumo(), cartaoJuntar(), cartaoUnidade(), cartaoCartoes(), cartaoTesteIA(),
+      cartaoCopia(), cartaoConsumo(), cartaoJuntar(), cartaoUnidade(), cartaoCartoes(), cartaoTesteIA(),
       dados.souAdmin() ? cartaoSigtap() : null, cartaoImportar()));
 }
 
@@ -55,6 +56,75 @@ function cartaoConsumo() {
   carregar();
   return h('section', { class: 'card' }, h('h2', null, '📊 Consumo da IA'),
     h('div', { class: 'card-conteudo' }, h('div', { class: 'campo' }, h('label', null, 'Mês'), mes), saida));
+}
+
+// ---------------- 💾 CÓPIA DE SEGURANÇA ----------------
+const CHAVE_ULTIMA_COPIA = 'apac.ultimaCopia';
+let xlsxPromessa = null;
+function carregarXlsx() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (!xlsxPromessa) {
+    xlsxPromessa = new Promise((ok, falha) => {
+      const s = document.createElement('script');
+      s.src = new URL('../../vendor/xlsx.full.min.js', import.meta.url).href;
+      s.onload = () => ok(window.XLSX);
+      s.onerror = () => { xlsxPromessa = null; falha(new Error('Não consegui carregar o gerador de planilhas.')); };
+      document.head.appendChild(s);
+    });
+  }
+  return xlsxPromessa;
+}
+function lerUltimaCopia() {
+  try { return JSON.parse(localStorage.getItem(CHAVE_ULTIMA_COPIA) || 'null'); } catch (e) { return null; }
+}
+
+function cartaoCopia() {
+  const u = dados.sessao.unidade;
+  const situacao = h('div');
+  const desenharSituacao = () => {
+    const ult = lerUltimaCopia();
+    const minha = ult && ult[u.id];
+    situacao.innerHTML = '';
+    if (!minha) {
+      situacao.appendChild(h('div', { class: 'msg aviso pequeno' }, '⚠️ Nenhuma cópia baixada neste computador ainda.'));
+      return;
+    }
+    const dias = Math.floor((Date.now() - new Date(minha).getTime()) / 86400000);
+    const quando = new Date(minha).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    situacao.appendChild(h('div', { class: 'msg ' + (dias >= 7 ? 'aviso' : 'ok') + ' pequeno' },
+      (dias >= 7 ? '⚠️ ' : '✅ ') + 'Última cópia neste computador: ' + quando + (dias >= 1 ? ' (há ' + dias + ' dia' + (dias > 1 ? 's' : '') + ')' : '') + '.'));
+  };
+  desenharSituacao();
+  const botao = h('button', { class: 'btn principal' }, '💾 Baixar cópia de tudo (Excel)');
+  botao.addEventListener('click', () => comCarregando(botao, 'Preparando…', async () => {
+    try {
+      const [XLSX, tabelas] = await Promise.all([carregarXlsx(), dados.lerCopiaDeSeguranca((r) => { botao.lastChild && (botao.lastChild.textContent = 'Lendo ' + r + '…'); })]);
+      const agora = new Date();
+      const p = dados.sessao.perfil || {};
+      const wb = montarPlanilhaCopia(XLSX, tabelas, {
+        unidade: [u.nome, [u.municipio, u.uf].filter(Boolean).join('/')].filter(Boolean).join(' — '),
+        geradaEm: agora.toLocaleString('pt-BR'), por: p.nome || p.email || ''
+      });
+      XLSX.writeFile(wb, nomeArquivoCopia(u.nome, agora));
+      try {
+        const ult = lerUltimaCopia() || {};
+        ult[u.id] = agora.toISOString();
+        localStorage.setItem(CHAVE_ULTIMA_COPIA, JSON.stringify(ult));
+      } catch (e) { /* sem memória do navegador: tudo bem */ }
+      desenharSituacao();
+      const total = tabelas.reduce((s2, t) => s2 + t.linhas.length, 0);
+      const falhas = tabelas.filter((t) => t.erro);
+      toast(fmtNum(total) + ' linhas em ' + tabelas.length + ' abas.' + (falhas.length ? ' Atenção: ' + falhas.length + ' aba(s) não puderam ser lidas.' : ''), '💾 Cópia baixada', falhas.length ? 'aviso' : 'ok');
+    } catch (e) {
+      alerta('Não consegui fazer a cópia', esc(e.message));
+    }
+  }));
+  return h('section', { class: 'card' }, h('h2', null, '💾 Cópia de segurança'),
+    h('div', { class: 'card-conteudo' },
+      h('p', { style: { marginTop: '0' } }, 'Baixa todos os dados da unidade (pacientes, protocolo, APACs, conferências e cadastros) numa planilha Excel, uma aba para cada.'),
+      h('p', { class: 'pequeno mudo' }, 'Faça uma vez por semana e guarde no Google Drive. O arquivo tem dados de pacientes: não envie para ninguém.'),
+      situacao,
+      botao));
 }
 
 // ---------------- 📎 JUNTAR PDFs ----------------
