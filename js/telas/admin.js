@@ -3,10 +3,12 @@
  *   Unidades (ativo, limite, código para planilha antiga)
  *   Usuários (convidar, ligar à unidade, papel)
  *   Consumo por mês e unidade + preços / margem / câmbio
- * As faturas em PDF chegam na etapa 3.
+ * 🧾 Fatura de consumo de IA em PDF: botão em cada linha de Consumo e preços.
  */
 import * as dados from '../dados.js';
-import { h, toast, modal, confirmar, comCarregando } from '../ui.js';
+import { h, toast, modal, confirmar, comCarregando, alerta, baixarPdf } from '../ui.js';
+import { montarFatura, nomeArquivoFatura } from '../lib/fatura.js';
+import { gerarPdfFatura } from '../lib/pdf-fatura.js';
 import { esc, fmtNum, rotuloMes, partesData } from '../lib/texto.js';
 
 export async function montar(area) {
@@ -278,7 +280,7 @@ async function abaConsumo(area) {
       h('div', { class: 'card-conteudo' }, h('div', { class: 'tabela-rolagem', style: { maxHeight: '60vh' } }, h('table', { class: 'tabela' },
         h('thead', null, h('tr', null, h('th', null, 'Mês'), h('th', null, 'Unidade'), h('th', { class: 'num' }, 'Chamadas'),
           h('th', { class: 'num' }, 'Entrada'), h('th', { class: 'num' }, 'Saída'), h('th', { class: 'num' }, 'Custo US$'),
-          h('th', { class: 'num' }, 'c/ margem US$'), h('th', { class: 'num' }, 'Valor R$'))),
+          h('th', { class: 'num' }, 'c/ margem US$'), h('th', { class: 'num' }, 'Valor R$'), h('th', null, ''))),
         corpo)))),
     h('section', { class: 'card' }, h('h2', null, '💲 Preços, margem e câmbio'), h('div', { class: 'card-conteudo' }, precosBox))));
 
@@ -286,14 +288,16 @@ async function abaConsumo(area) {
     try {
       const r = await dados.resumoConsumo();
       corpo.innerHTML = '';
-      if (!r.length) corpo.innerHTML = '<tr><td colspan="8" class="vazio-tabela">Nenhum uso registrado.</td></tr>';
+      if (!r.length) corpo.innerHTML = '<tr><td colspan="9" class="vazio-tabela">Nenhum uso registrado.</td></tr>';
       r.forEach((x) => corpo.appendChild(h('tr', null,
         h('td', null, rotuloMes(x.mes)), h('td', null, x.unidade), h('td', { class: 'num' }, fmtNum(x.chamadas)),
         h('td', { class: 'num' }, fmtNum(x.tokens_entrada)), h('td', { class: 'num' }, fmtNum(x.tokens_saida)),
         h('td', { class: 'num' }, fmtNum(x.custo_usd, 4)), h('td', { class: 'num' }, fmtNum(x.com_margem_usd, 4)),
-        h('td', { class: 'num' }, h('b', null, 'R$ ' + fmtNum(x.valor_reais, 2))))));
+        h('td', { class: 'num' }, h('b', null, 'R$ ' + fmtNum(x.valor_reais, 2))),
+        h('td', null, h('button', { class: 'btn pequeno', title: 'Gerar a fatura em PDF deste mês para esta unidade',
+          onclick: () => abrirFatura(x, r) }, '🧾 Fatura')))));
     } catch (e) {
-      corpo.innerHTML = '<tr><td colspan="8"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
+      corpo.innerHTML = '<tr><td colspan="9"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
     }
   };
 
@@ -321,3 +325,64 @@ async function abaConsumo(area) {
   precosBox.append(form, h('p', { class: 'mudo pequeno' }, 'Use os preços do modelo em uso, da tabela de preços da Anthropic.'), status, salvar);
   carregar();
 }
+
+// ============================================================
+// 🧾 FATURA DE CONSUMO DE IA (antes: PAINEL_CONSUMO_IA ▸ Gerar fatura)
+// ============================================================
+const CHAVE_EMISSOR = 'apac.faturaEmissor';
+function lerEmissor() {
+  try { return JSON.parse(localStorage.getItem(CHAVE_EMISSOR) || 'null'); } catch (e) { return null; }
+}
+
+function abrirFatura(linhaResumo, resumoTodo) {
+  const salvo = lerEmissor() || {};
+  const contato = h('input', { value: salvo.contato || 'apacdigital.com.br · tecnicoacslima@gmail.com · (65) 99290-5684', style: { width: '100%' } });
+  const dias = h('input', { type: 'number', min: 0, max: 60, value: salvo.dias ?? 10, style: { width: '90px' } });
+  const janela = modal({
+    titulo: '🧾 Fatura · ' + linhaResumo.unidade + ' · ' + rotuloMes(linhaResumo.mes),
+    largura: 560,
+    conteudo: h('div', null,
+      h('p', { style: { marginTop: 0 } }, 'Valor do mês: ', h('b', null, 'R$ ' + fmtNum(linhaResumo.valor_reais, 2)),
+        ' · ' + fmtNum(linhaResumo.chamadas) + ' chamadas.'),
+      h('div', { class: 'campo' }, h('label', null, 'Contato do emissor (aparece embaixo do logo)'), contato),
+      h('div', { class: 'campo' }, h('label', null, 'Vencimento (dias depois da emissão)'), dias),
+      h('p', { class: 'pequeno mudo' }, 'O valor usa os preços, a margem e o câmbio salvos ao lado. Uma cópia fica guardada na nuvem (pasta faturas).')),
+    botoes: [
+      { texto: 'Cancelar' },
+      { texto: '🧾 Gerar e baixar PDF', classe: 'principal', acao: async (fechar) => {
+        const botao = janela.el.querySelector('.modal-rodape .principal');
+        try {
+          await comCarregando(botao, 'Gerando…', async () => {
+            try { localStorage.setItem(CHAVE_EMISSOR, JSON.stringify({ contato: contato.value, dias: Number(dias.value) || 0 })); } catch (e) { /* tudo bem */ }
+            const { bytes, nome } = await gerarFaturaPdf(linhaResumo, resumoTodo, { contato: contato.value.trim(), dias: Number(dias.value) || 0 });
+            baixarPdf(bytes, nome);
+            toast(nome, '🧾 Fatura gerada');
+          });
+          fechar();
+        } catch (e) { alerta('Não gerou a fatura', esc(e.message)); }
+      } }
+    ]
+  });
+}
+
+async function gerarFaturaPdf(x, resumoTodo, { contato, dias }) {
+  const mesma = (y) => (x.unidade_id ? y.unidade_id === x.unidade_id : (!y.unidade_id && y.unidade === x.unidade));
+  const [linhas, precos, unidades] = await Promise.all([
+    dados.usoIaDoMes(x.unidade_id, x.unidade, x.mes), dados.lerPrecos(), dados.listarUnidades().catch(() => [])]);
+  const un = (unidades || []).find((u) => u.id === x.unidade_id);
+  const fatura = montarFatura({
+    mes: x.mes, unidade: x.unidade, linhas, precos,
+    historico: resumoTodo.filter(mesma).map((y) => ({ mes: y.mes, valor_reais: y.valor_reais })),
+    diasVencimento: dias
+  });
+  let marca = null;
+  try { const r = await fetch('img/logo-relatorio.png'); if (r.ok) marca = { bytes: new Uint8Array(await r.arrayBuffer()), tipo: 'image/png' }; } catch (e) { /* sem logo */ }
+  const bytes = await gerarPdfFatura(window.PDFLib, fatura, {
+    marca, emissor: { nome: 'APAC digital', contato },
+    clienteLocal: un ? [un.municipio, un.uf].filter(Boolean).join('/') : ''
+  });
+  const nome = nomeArquivoFatura(x.mes, x.unidade);
+  try { await dados.substituirArquivo('faturas', x.mes + '/' + nome, bytes, 'application/pdf'); } catch (e) { /* a cópia na nuvem é extra */ }
+  return { bytes, nome };
+}
+

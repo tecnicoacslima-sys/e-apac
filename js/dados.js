@@ -283,6 +283,14 @@ export async function convidarUsuario(dadosConvite) {
 export async function resumoConsumo() {
   return ok(await sb.from('resumo_consumo').select('*').order('mes', { ascending: false }).order('unidade'));
 }
+/** Chamadas de IA de uma unidade num mês (para a fatura). Sem unidade_id: procura pelo nome guardado. */
+export async function usoIaDoMes(unidadeId, unidadeNome, mes) {
+  return todas(() => {
+    let q = sb.from('uso_ia').select('id, criado_em, funcao, tokens_entrada, tokens_saida, status').eq('mes', mes);
+    q = unidadeId ? q.eq('unidade_id', unidadeId) : q.eq('unidade_nome', unidadeNome);
+    return q.order('id');
+  });
+}
 export async function lerPrecos() {
   return ok(await sb.from('precos').select('*').eq('id', 1).maybeSingle());
 }
