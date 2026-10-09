@@ -156,8 +156,8 @@ export async function gerarPdfApac(PDFLib, dados, opts = {}) {
   }
 
   /**
-   * Texto longo (Observações): bloco centralizado na altura da caixa e linhas
-   * justificadas. Uma linha só fica centralizada. Texto curto ganha letra maior.
+   * Texto longo (Observações): bloco no meio da altura da caixa, sempre
+   * alinhado à esquerda. Texto curto ganha letra um pouco maior.
    */
   function paragrafo(x1, topo, x2, altura, texto, tamMin = 7.4, tamMax = 9) {
     const palavras = textoSeguro(texto).split(' ').filter(Boolean);
@@ -184,26 +184,7 @@ export async function gerarPdfApac(PDFLib, dados, opts = {}) {
     const y0 = topo + 7 + (util - blocoAlt) / 2;            // centraliza na altura
     const xi = x1 + 8;
     linhas.forEach((ws, i) => {
-      const yb = Y(y0 + i * passo + tam);
-      const texto1 = ws.join(' ');
-      const w = normal.widthOfTextAtSize(texto1, tam);
-      if (linhas.length === 1) {                            // uma linha: centralizada
-        page.drawText(texto1, { x: (x1 + x2) / 2 - w / 2, y: yb, size: tam, font: normal, color: PRETO });
-        return;
-      }
-      const ultima = i === linhas.length - 1;
-      if (ultima || ws.length === 1) {                     // última linha: alinhada à esquerda
-        page.drawText(texto1, { x: xi, y: yb, size: tam, font: normal, color: PRETO });
-        return;
-      }
-      // justificada: distribui a sobra entre os espaços
-      const somaPalavras = ws.reduce((acc, p) => acc + normal.widthOfTextAtSize(p, tam), 0);
-      const espaco = (largura - somaPalavras) / (ws.length - 1);
-      let x = xi;
-      ws.forEach((p) => {
-        page.drawText(p, { x, y: yb, size: tam, font: normal, color: PRETO });
-        x += normal.widthOfTextAtSize(p, tam) + espaco;
-      });
+      page.drawText(ws.join(' '), { x: xi, y: Y(y0 + i * passo + tam), size: tam, font: normal, color: PRETO });
     });
   }
 
