@@ -1,6 +1,6 @@
 {
- "versao": "20261009T1120",
- "gerado": "2026-10-09T11:20:42.468Z",
+ "versao": "20261009T1604",
+ "gerado": "2026-10-09T16:04:07.000Z",
  "arquivos": [
   "config.js",
   "css/app.css",
@@ -29,6 +29,7 @@
   "js/telas/atualizar-sigtap.js",
   "js/telas/cadastros.js",
   "js/telas/conferencia.js",
+  "js/telas/exemplos.js",
   "js/telas/ferramentas.js",
   "js/telas/importar.js",
   "js/telas/juntar-pdf.js",

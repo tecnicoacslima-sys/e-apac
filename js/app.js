@@ -15,12 +15,24 @@ const TELAS = {
   sigtap:      { rotulo: 'SIGTAP',      carregar: () => import('./telas/sigtap.js') },
   cadastros:   { rotulo: 'Cadastros',   carregar: () => import('./telas/cadastros.js') },
   ferramentas: { rotulo: 'Ferramentas', carregar: () => import('./telas/ferramentas.js') },
+  exemplos:    { rotulo: 'Exemplos',    carregar: () => import('./telas/exemplos.js'), soTeste: true },
   importar:    { rotulo: 'Importar',    carregar: () => import('./telas/importar.js'), escondido: true },
   juntar:      { rotulo: 'Juntar PDFs', carregar: () => import('./telas/juntar-pdf.js'), escondido: true },
   admin:       { rotulo: 'Admin',       carregar: () => import('./telas/admin.js'), soAdmin: true }
 };
 
 const app = document.getElementById('app');
+
+/** A tela "Exemplos" só aparece para a unidade TESTE (demonstração) e para o administrador. */
+function unidadeDeTeste() {
+  const nome = (dados.sessao.unidade && dados.sessao.unidade.nome) || '';
+  return nome.trim().toUpperCase() === 'TESTE';
+}
+function podeVer(t) {
+  if (t.soAdmin && !dados.souAdmin()) return false;
+  if (t.soTeste && !(unidadeDeTeste() || dados.souAdmin())) return false;
+  return true;
+}
 let telaAtual = null;
 
 // ============================================================
@@ -69,7 +81,7 @@ function montarEstrutura() {
   const menu = h('nav', { class: 'menu', 'aria-label': 'Menu principal' });
   Object.entries(TELAS).forEach(([chave, t]) => {
     if (t.escondido) return;
-    if (t.soAdmin && !dados.souAdmin()) return;
+    if (!podeVer(t)) return;
     menu.appendChild(h('a', { href: '#/' + chave, 'data-tela': chave }, t.rotulo));
   });
 
@@ -102,7 +114,7 @@ export function atualizarSubtitulo() {
 async function abrirTelaDoEndereco() {
   const m = location.hash.match(/^#\/([a-z]+)/);
   let chave = m ? m[1] : 'apac';
-  if (!TELAS[chave] || (TELAS[chave].soAdmin && !dados.souAdmin())) chave = 'apac';
+  if (!TELAS[chave] || !podeVer(TELAS[chave])) chave = 'apac';
 
   document.querySelectorAll('.menu a').forEach((a) => a.classList.toggle('ativo', a.dataset.tela === chave));
   const area = document.getElementById('tela');
