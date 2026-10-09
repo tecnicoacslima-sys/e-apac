@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Verificação de APAC · APAC digital</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/svg+xml" href="../img/favicon.svg">
+  <meta name="theme-color" content="#2E7D4F">
+  <style>
+    :root { --verde: #2E7D4F; --verde-escuro: #1F5C38; --laranja: #F2A541; --texto: #13261B; --suave: #5E6E65; --fundo: #E9ECEA; --vermelho: #B5373B; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: var(--texto); background: var(--fundo); min-height: 100vh; }
+    body::before { content: ""; display: block; height: 18px; background: var(--verde); border-bottom: 3px solid var(--laranja); }
+    main { max-width: 620px; margin: 28px auto; padding: 0 16px; }
+    .cartao { background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.08); overflow: hidden; }
+    .topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #E3E8E5; flex-wrap: wrap; }
+    .topo img { height: 32px; }
+    .topo span { font-size: 12px; color: var(--suave); font-weight: 600; letter-spacing: .03em; }
+    .corpo { padding: 22px 20px 24px; }
+    .selo { display: flex; gap: 14px; align-items: center; margin-bottom: 16px; }
+    .selo .icone { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; flex: none; color: #fff; }
+    .ok .icone { background: var(--verde); } .erro .icone { background: var(--vermelho); }
+    .selo h1 { margin: 0; font-size: 21px; } .ok h1 { color: var(--verde-escuro); } .erro h1 { color: var(--vermelho); }
+    .selo p { margin: 3px 0 0; color: var(--suave); font-size: 14px; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; margin: 0 0 20px; font-size: 14.5px; }
+    dt { color: var(--suave); } dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+    .botao { display: block; text-align: center; background: var(--verde); color: #fff; text-decoration: none; font-weight: 700; padding: 13px 16px; border-radius: 8px; font-size: 15px; }
+    .botao:hover { background: var(--verde-escuro); }
+    .nota { font-size: 12.5px; color: var(--suave); margin: 14px 0 0; line-height: 1.45; }
+    .carregando { color: var(--suave); padding: 20px 0; text-align: center; }
+    footer { text-align: center; font-size: 12px; color: var(--suave); margin: 16px 0 30px; }
+    footer a { color: var(--verde); text-decoration: none; }
+    @media (max-width: 480px) { dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
+  </style>
+  <script src="../config.js"></script>
+  <script src="../vendor/supabase.js"></script>
+</head>
+<body>
+  <main>
+    <div class="cartao">
+      <div class="topo"><img src="../img/logo.svg" alt="APAC digital"><span>VERIFICAÇÃO DE APAC</span></div>
+      <div class="corpo" id="resultado"><div class="carregando">Verificando o documento…</div></div>
+    </div>
+    <footer><a href="https://apacdigital.com.br">apacdigital.com.br</a> · Geradora de APAC Externa online</footer>
+  </main>
+  <script>
+    (async function () {
+      var area = document.getElementById('resultado');
+      function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
+      function erro(titulo, texto) {
+        area.innerHTML = '<div class="selo erro"><div class="icone">✕</div><div><h1>' + esc(titulo) + '</h1><p>' + esc(texto) + '</p></div></div>' +
+          '<p class="nota">Confira se o QR Code foi lido inteiro. Em caso de dúvida, procure a unidade de saúde que emitiu a APAC.</p>';
+      }
+      var codigo = new URLSearchParams(location.search).get('c') || '';
+      if (!/^[A-Za-z0-9]{16,64}$/.test(codigo)) { erro('Código inválido', 'Este endereço não traz um código de verificação válido.'); return; }
+      try {
+        var cfg = window.APAC_CONFIG || {};
+        var sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+        var r = await sb.rpc('verificar_apac', { p_codigo: codigo });
+        if (r.error) throw r.error;
+        var a = r.data;
+        if (!a) { erro('APAC não encontrada', 'Não existe APAC emitida pelo APAC digital com este código.'); return; }
+        var quando = new Date(a.emitida_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+        var pdf = a.pdf ? sb.storage.from('verificacao').getPublicUrl(a.pdf).data.publicUrl : '';
+        var local = [a.municipio, a.uf].filter(Boolean).join('/');
+        var proc = [a.proc_codigo, a.procedimento].filter(Boolean).join(' · ');
+        area.innerHTML =
+          '<div class="selo ok"><div class="icone">✓</div><div><h1>APAC autêntica</h1><p>Documento emitido pelo sistema APAC digital.</p></div></div>' +
+          '<dl>' +
+            '<dt>Unidade emissora</dt><dd>' + esc(a.unidade) + (local ? ' — ' + esc(local) : '') + '</dd>' +
+            '<dt>Gerada em</dt><dd>' + esc(quando) + '</dd>' +
+            '<dt>Paciente</dt><dd>' + esc(a.paciente || '—') + ' <span style="font-weight:400;color:#5E6E65">(iniciais)</span></dd>' +
+            (proc ? '<dt>Procedimento</dt><dd>' + esc(proc) + '</dd>' : '') +
+            '<dt>Carimbo e assinatura</dt><dd>' + (a.assinada ? 'Sim, inseridos na emissão' : 'Não (assinatura à mão)') + '</dd>' +
+          '</dl>' +
+          (pdf ? '<a class="botao" href="' + esc(pdf) + '" target="_blank" rel="noopener">📄 Abrir a APAC original (PDF)</a>' : '') +
+          '<p class="nota">Compare o documento impresso com a APAC original. Se houver diferença, considere o impresso como alterado.</p>';
+      } catch (e) {
+        erro('Não foi possível verificar agora', 'Tente de novo em alguns instantes.');
+      }
+    })();
+  </script>
+</body>
+</html>

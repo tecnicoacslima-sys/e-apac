@@ -16,6 +16,7 @@ import { interpretarTextoEspelho, leituraSuficiente, nomeValido, camposFaltantes
          PROMPT_ESPELHO, normalizarEspelhoIA } from '../lib/espelho-celk.js';
 import { PROMPT_LAUDO, buscarProcedimento, compararComReferencia, sugestaoParaFormulario } from '../lib/sigtap.js';
 import { gerarPdfApac } from '../lib/pdf-apac.js';
+import { matrizQr, novoCodigoVerificacao, urlVerificacao } from '../lib/qr.js';
 import { abrirBuscaSigtap } from './sigtap.js';
 
 const LIMITE_PDF_MB = 22;   // a IA aceita ~32 MB por pedido; o base64 aumenta ~33%
@@ -372,7 +373,9 @@ function montarPainel() {
         h('hr', { class: 'divisor' }),
         botao('laranja', '1', 'Selecionar Espelho CELK', 'Cadastra o paciente a partir do PDF', passo1Espelho),
         botao('azul', '2', 'Buscar dados da APAC', 'Lê o laudo com IA e confere o código', passo2BuscarDados),
-        botao('verde', '3', 'Gerar APAC em PDF', 'Confere os campos e gera o laudo', passo3GerarPdf),
+        botao('verde', '3', 'Gerar APAC em PDF', 'Confere os campos e gera o laudo', (b) => passo3GerarPdf(b, false)),
+        h('button', { type: 'button', class: 'acao-extra', title: 'Gera a APAC com QR Code de verificação e o carimbo/assinatura do profissional',
+          onclick: (e) => passo3GerarPdf(e.currentTarget, true) }, '🔳 ✍️ Gerar com QR Code e assinatura'),
         botao('roxo', '4', 'Salvar no Protocolo', 'Grava no Check-list / Protocolo', passo4Salvar),
         botao('vermelho', '5', 'Limpar formulário', 'Pronto para o próximo paciente', passo5Limpar),
         h('hr', { class: 'divisor' }),
@@ -635,7 +638,20 @@ function mostrarResultadoLaudo(r, resultado, janela, zona) {
 // ============================================================
 // ③ GERAR APAC EM PDF
 // ============================================================
-async function passo3GerarPdf(botao) {
+/** Profissional solicitante do formulário no cadastro (pelo documento ou pelo nome) */
+function profissionalDoFormulario() {
+  const doc = soDigitos(form.esf_doc_numero);
+  const nome = String(form.esf_profissional || '').toUpperCase().trim();
+  const lista = cadastros.profissionais || [];
+  return (doc && lista.find((p) => soDigitos(p.documento) === doc)) ||
+         (nome && lista.find((p) => String(p.nome || '').toUpperCase().trim() === nome)) || null;
+}
+
+/**
+ * completo = false → APAC simples (como sempre foi).
+ * completo = true  → com QR Code de verificação + carimbo/assinatura do profissional (se cadastrada).
+ */
+async function passo3GerarPdf(botao, completo = false) {
   const faltando = camposObrigatoriosFaltando(form);
   if (faltando.length) {
     const seguir = await confirmar('⚠️ Campos em branco ou com erro',
@@ -650,7 +666,31 @@ async function passo3GerarPdf(botao) {
 
   await comCarregando(botao, 'Gerando…', async () => {
     const u = dados.sessao.unidade;
-    const bytes = await gerarPdfApac(window.PDFLib, form, { uf: u.uf });
+    const opcoes = { uf: u.uf, unidade: { nome: u.nome, municipio: u.municipio, uf: u.uf } };
+    const avisosExtras = [];
+    let codigo = '';
+    let comAssinatura = false;
+
+    if (completo) {
+      codigo = novoCodigoVerificacao();
+      const url = urlVerificacao(location.href, codigo);
+      opcoes.qr = { url, modulos: matrizQr(url) };
+      const prof = profissionalDoFormulario();
+      if (prof && prof.assinatura_path) {
+        try {
+          const blob = await dados.baixarArquivo('logos', prof.assinatura_path);
+          opcoes.assinatura = { bytes: new Uint8Array(await blob.arrayBuffer()), tipo: blob.type || 'image/png' };
+          comAssinatura = true;
+        } catch (e) {
+          avisosExtras.push('Não consegui buscar a assinatura de ' + prof.nome + ' (' + e.message + '). A APAC saiu só com o QR Code.');
+        }
+      } else {
+        avisosExtras.push((prof ? prof.nome : (form.esf_profissional || 'O profissional solicitante')) +
+          ' não tem carimbo/assinatura cadastrados. A APAC saiu só com o QR Code. Para cadastrar: Cadastros ▸ Profissionais ▸ ✍️.');
+      }
+    }
+
+    const bytes = await gerarPdfApac(window.PDFLib, form, opcoes);
     const nome = nomeArquivoApac(form);
     const p = partesData();
     let caminho = u.id + '/' + p.ano + '/' + p.mes + '/' + nome + '.pdf';
@@ -658,6 +698,12 @@ async function passo3GerarPdf(botao) {
     let guardado = false;
 
     try {
+      // com QR: primeiro publica a cópia que o QR abre (se falhar, nada de entregar um QR que não funciona)
+      let caminhoQr = null;
+      if (completo) {
+        caminhoQr = u.id + '/' + codigo + '.pdf';
+        await dados.enviarArquivo('verificacao', caminhoQr, bytes);
+      }
       try {
         await dados.enviarArquivo('apacs', caminho, bytes);
       } catch (e) {
@@ -665,22 +711,32 @@ async function passo3GerarPdf(botao) {
         caminho = u.id + '/' + p.ano + '/' + p.mes + '/' + nome + '_' + p.hora + p.min + p.seg + '.pdf';
         await dados.enviarArquivo('apacs', caminho, bytes);
       }
-      const reg = await dados.registrarApac({
+      const linha = {
         dados: form, paciente_nome: form.nome_paciente || '', paciente_cns: soDigitos(form.cns_paciente),
         proc_codigo: soDigitos(form.proc_codigo), proc_nome: form.proc_nome || '', pdf_path: caminho,
         assinatura: await assinaturaFormulario(form)
-      });
+      };
+      if (completo) Object.assign(linha, { verificacao: codigo, verificacao_path: caminhoQr, com_assinatura: comAssinatura });
+      const reg = await dados.registrarApac(linha);
       form._apac_id = reg.id;
       guardado = true;
       salvarDepois();
     } catch (e) {
+      if (completo) {
+        alerta('❌ Não consegui gerar com QR Code',
+          'O QR Code precisa da cópia guardada na nuvem e ela não foi gravada (' + esc(e.message) + ').<br><br>' +
+          'Tente de novo ou use o botão <b>③ Gerar APAC em PDF</b> (sem QR Code).');
+        return;
+      }
       aviso = 'O PDF foi gerado, mas não consegui guardar uma cópia na nuvem (' + e.message + '). Imprima ou salve agora.';
     }
 
     modal({
-      titulo: '✅ APAC gerada',
+      titulo: completo ? '✅ APAC gerada com QR Code' : '✅ APAC gerada',
       conteudo: h('div', { style: { textAlign: 'center' } },
         h('p', null, h('b', null, caminho.split('/').pop())),
+        completo ? h('p', { class: 'pequeno' }, '🔳 QR Code de verificação' + (comAssinatura ? ' · ✍️ com carimbo e assinatura' : '')) : null,
+        ...avisosExtras.map((t) => h('div', { class: 'msg aviso', style: { textAlign: 'left' } }, t)),
         aviso ? h('div', { class: 'msg aviso' }, aviso) : h('p', { class: 'mudo pequeno' }, 'Uma cópia ficou guardada em Protocolo ▸ APACs geradas.')),
       botoes: [
         { texto: 'Fechar' },
