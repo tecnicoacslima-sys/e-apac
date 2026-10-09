@@ -316,7 +316,7 @@ function exportarCsv() {
 async function montarApacs(area) {
   const corpoA = h('tbody', null, h('tr', null, h('td', { colspan: 4 }, h('div', { class: 'carregando' }, h('span', { class: 'spinner' }), 'Carregando…'))));
   area.append(h('div', { class: 'card' }, h('div', { class: 'card-conteudo' },
-    h('p', { class: 'mudo pequeno', style: { marginTop: 0 } }, 'As 100 últimas APACs geradas pelo botão ③.'),
+    h('p', { class: 'mudo pequeno', style: { marginTop: 0 } }, 'As 100 últimas APACs geradas pelo botão ③. 🔳 = com QR Code. Uma APAC gerada com erro pode ser cancelada: o QR Code dela passa a mostrar "cancelada".'),
     h('div', { class: 'tabela-rolagem' }, h('table', { class: 'tabela' },
       h('thead', null, h('tr', null, h('th', null, 'Gerada em'), h('th', null, 'Paciente'), h('th', null, 'Procedimento'), h('th', null, ''))),
       corpoA)))));
@@ -324,21 +324,63 @@ async function montarApacs(area) {
     const lista = await dados.listarApacs(100);
     corpoA.innerHTML = '';
     if (!lista.length) corpoA.innerHTML = '<tr><td colspan="4" class="vazio-tabela">Nenhuma APAC gerada ainda.</td></tr>';
-    lista.forEach((a) => corpoA.appendChild(h('tr', null,
-      h('td', null, dataHoraBR(a.criado_em)),
-      h('td', null, h('strong', null, a.paciente_nome), h('div', { class: 'mudo pequeno' }, 'CNS ' + (a.paciente_cns || '—'))),
-      h('td', null, (a.proc_codigo ? a.proc_codigo + ' · ' : '') + a.proc_nome),
-      h('td', { class: 'direita' }, h('div', { class: 'botoes', style: { justifyContent: 'flex-end' } },
-        a.pdf_path ? h('button', { class: 'btn pequeno', onclick: async () => {
-          try { window.open(await dados.linkTemporario('apacs', a.pdf_path, 600), '_blank'); }
-          catch (e) { toast(e.message, '❌ Erro', 'erro'); }
-        } }, '🖨️ Abrir PDF') : null,
-        h('button', { class: 'btn pequeno', onclick: async () => {
-          if (!await confirmar('Carregar no formulário', 'O formulário atual será substituído pelos dados desta APAC. Continuar?')) return;
-          await carregarDadosSalvos(a.dados);
-          location.hash = '#/apac';
-        } }, '↩️ Carregar no formulário'))))));
+    lista.forEach((a) => corpoA.appendChild(linhaApac(a)));
   } catch (e) {
     corpoA.innerHTML = '<tr><td colspan="4"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
   }
 }
+
+function linhaApac(a) {
+  const cancelada = !!a.cancelada_em;
+  const tr = h('tr', { class: cancelada ? 'apac-cancelada' : '' },
+    h('td', null, dataHoraBR(a.criado_em),
+      a.verificacao ? h('div', { class: 'pequeno mudo', title: 'Gerada com QR Code de verificação' }, '🔳 QR' + (a.com_assinatura ? ' · ✍️' : '')) : null),
+    h('td', null, h('strong', null, a.paciente_nome), h('div', { class: 'mudo pequeno' }, 'CNS ' + (a.paciente_cns || '—')),
+      cancelada ? h('div', { class: 'pequeno', style: { color: 'var(--vermelho)' } },
+        '🚫 Cancelada em ' + dataHoraBR(a.cancelada_em) + (a.cancelada_por ? ' por ' + a.cancelada_por : '') + (a.cancelada_motivo ? ' — ' + a.cancelada_motivo : '')) : null),
+    h('td', null, (a.proc_codigo ? a.proc_codigo + ' · ' : '') + a.proc_nome),
+    h('td', { class: 'direita' }, h('div', { class: 'botoes', style: { justifyContent: 'flex-end' } },
+      a.pdf_path ? h('button', { class: 'btn pequeno', onclick: async () => {
+        try { window.open(await dados.linkTemporario('apacs', a.pdf_path, 600), '_blank'); }
+        catch (e) { toast(e.message, '❌ Erro', 'erro'); }
+      } }, '🖨️ Abrir PDF') : null,
+      h('button', { class: 'btn pequeno', onclick: async () => {
+        if (!await confirmar('Carregar no formulário', 'O formulário atual será substituído pelos dados desta APAC. Continuar?')) return;
+        await carregarDadosSalvos(a.dados);
+        location.hash = '#/apac';
+      } }, '↩️ Carregar no formulário'),
+      !cancelada ? h('button', { class: 'btn pequeno perigo-texto', title: 'Cancelar esta APAC (gerada com erro)',
+        onclick: () => perguntarCancelamento(a, (novo) => tr.replaceWith(linhaApac(novo))) }, '🚫 Cancelar') : null)));
+  return tr;
+}
+
+function perguntarCancelamento(a, aoCancelar) {
+  const motivo = h('textarea', { rows: 3, maxlength: 300, placeholder: 'Ex.: gerada com CID errado; refeita em seguida.', style: { width: '100%' } });
+  const janela = modal({
+    titulo: '🚫 Cancelar APAC',
+    conteudo: h('div', null,
+      h('p', { style: { marginTop: 0 } }, h('b', null, a.paciente_nome), ' · ', (a.proc_codigo ? a.proc_codigo + ' · ' : '') + a.proc_nome,
+        h('div', { class: 'pequeno mudo' }, 'Gerada em ' + dataHoraBR(a.criado_em))),
+      a.verificacao
+        ? h('div', { class: 'msg aviso pequeno' }, 'Quem escanear o QR Code desta APAC verá "APAC cancelada", com a data e o motivo. O PDF deixa de abrir pelo QR.')
+        : h('div', { class: 'msg info pequeno' }, 'Esta APAC não tem QR Code. Ela só ficará marcada como cancelada nesta lista.'),
+      h('div', { class: 'campo', style: { marginTop: '10px' } }, h('label', null, 'Motivo do cancelamento'), motivo),
+      h('p', { class: 'pequeno mudo' }, 'O cancelamento não pode ser desfeito. A APAC continua na lista para histórico.')),
+    botoes: [
+      { texto: 'Voltar' },
+      { texto: '🚫 Cancelar APAC', classe: 'perigo', acao: async (fechar) => {
+        const m = motivo.value.trim();
+        if (m.length < 5) { toast('Escreva o motivo (pelo menos 5 letras).', 'Atenção', 'aviso'); motivo.focus(); return; }
+        const botao = janela.el.querySelector('.modal-rodape .perigo');
+        try {
+          await comCarregando(botao, 'Cancelando…', () => dados.cancelarApac(a.id, m));
+          toast('APAC de ' + a.paciente_nome + ' cancelada.', '🚫 Cancelada');
+          fechar();
+          aoCancelar({ ...a, cancelada_em: new Date().toISOString(), cancelada_motivo: m, cancelada_por: (dados.sessao.perfil && dados.sessao.perfil.nome) || '' });
+        } catch (e) { alerta('Não cancelou', esc(e.message)); }
+      } }
+    ]
+  });
+  setTimeout(() => motivo.focus(), 50);
+}
+

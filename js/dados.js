@@ -189,9 +189,15 @@ export async function baixarArquivo(bucket, caminho) {
 export async function registrarApac(linha) {
   return ok(await sb.from('apacs').insert(linha).select('id').single());
 }
+export async function cancelarApac(id, motivo) {
+  const r = ok(await sb.rpc('cancelar_apac', { p_id: id, p_motivo: motivo }));
+  // o QR deixa de abrir o PDF: tira também a cópia pública (se não der, a verificação já esconde o link)
+  if (r && r.verificacao_path) { try { await sb.storage.from('verificacao').remove([r.verificacao_path]); } catch (e) { /* tudo bem */ } }
+  return r;
+}
 export async function listarApacs(limite = 100) {
   return ok(await sb.from('apacs')
-    .select('id, criado_em, paciente_nome, paciente_cns, proc_codigo, proc_nome, pdf_path, dados')
+    .select('*')
     .order('criado_em', { ascending: false }).limit(limite));
 }
 

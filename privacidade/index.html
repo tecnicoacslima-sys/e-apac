@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacidade e LGPD · APAC digital</title>
+  <meta name="description" content="Como o APAC digital trata os dados pessoais (LGPD).">
+  <link rel="icon" type="image/svg+xml" href="../img/favicon.svg">
+  <meta name="theme-color" content="#2E7D4F">
+  <style>
+    :root { --verde: #2E7D4F; --verde-escuro: #1F5C38; --laranja: #F2A541; --texto: #13261B; --suave: #5E6E65; --fundo: #E9ECEA; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: var(--texto); background: var(--fundo); line-height: 1.55; }
+    body::before { content: ""; display: block; height: 18px; background: var(--verde); border-bottom: 3px solid var(--laranja); }
+    main { max-width: 780px; margin: 28px auto; padding: 0 16px; }
+    .cartao { background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.08); overflow: hidden; }
+    .topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px; border-bottom: 1px solid #E3E8E5; flex-wrap: wrap; }
+    .topo img { height: 32px; }
+    .topo span { font-size: 12px; color: var(--suave); font-weight: 600; letter-spacing: .03em; }
+    .corpo { padding: 8px 24px 26px; }
+    h1 { color: var(--verde-escuro); font-size: 24px; margin: 18px 0 4px; }
+    .sub { color: var(--suave); margin: 0 0 18px; font-size: 14px; }
+    h2 { font-size: 16.5px; color: var(--verde-escuro); margin: 22px 0 6px; padding-left: 10px; border-left: 4px solid var(--laranja); }
+    p, li { font-size: 15px; }
+    ul { padding-left: 20px; margin: 6px 0; }
+    li { margin: 3px 0; }
+    .resumo { background: #EEF7F1; border: 1px solid #C5E3CF; border-radius: 8px; padding: 12px 16px; margin: 10px 0 4px; }
+    .resumo ul { margin: 4px 0; }
+    .nota { font-size: 13px; color: var(--suave); border-top: 1px solid #E3E8E5; margin-top: 24px; padding-top: 12px; }
+    a { color: var(--verde); }
+    footer { text-align: center; font-size: 12px; color: var(--suave); margin: 16px 0 30px; }
+    footer a { text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="cartao">
+      <div class="topo"><a href="../"><img src="../img/logo.svg" alt="APAC digital"></a><span>PRIVACIDADE E LGPD</span></div>
+      <div class="corpo">
+        <h1>Como o APAC digital cuida dos dados</h1>
+        <p class="sub">Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018) · Última atualização: outubro de 2026</p>
+
+        <div class="resumo">
+          <b>Em resumo:</b>
+          <ul>
+            <li>O sistema é usado <b>somente pelas equipes das unidades de saúde</b>, com login e senha pessoais.</li>
+            <li>Cada unidade <b>só enxerga os dados dela</b>. Nem o administrador do sistema vê os pacientes de outra unidade.</li>
+            <li>Os dados servem <b>só para o trabalho de regulação</b>: gerar a APAC, controlar o protocolo e conferir cadastros.</li>
+            <li>Nada é vendido, divulgado ou usado para propaganda.</li>
+          </ul>
+        </div>
+
+        <h2>1. Para que serve</h2>
+        <p>O APAC digital ajuda as unidades de saúde a preencher o Laudo para Solicitação/Autorização de Procedimento Ambulatorial (APAC), a controlar o protocolo de encaminhamentos e a conferir se os cadastros do paciente (Cartão SUS, CELK, documentos e comprovante de endereço) estão iguais.</p>
+
+        <h2>2. Quais dados são tratados</h2>
+        <ul>
+          <li><b>Dos pacientes:</b> nome, Cartão Nacional de Saúde (CNS), CPF, data de nascimento, sexo, nome da mãe, telefone, endereço e as informações de saúde necessárias ao encaminhamento (procedimento, CID, diagnóstico e observações do laudo).</li>
+          <li><b>Dos documentos enviados</b> para leitura ou conferência (laudos, espelhos, documento de identidade e comprovante de endereço).</li>
+          <li><b>Dos profissionais:</b> nome, Cartão SUS ou CPF e, quando cadastrados com autorização do profissional, a imagem do carimbo e da assinatura.</li>
+          <li><b>Dos usuários do sistema:</b> nome, e-mail e o registro das ações principais (quem gerou, salvou ou cancelou).</li>
+        </ul>
+
+        <h2>3. Por que é permitido</h2>
+        <p>O tratamento é feito para a execução de políticas públicas de saúde e para a tutela da saúde, pelas equipes do SUS, conforme os artigos 7º e 11 da LGPD. Os dados usados são apenas os necessários ao encaminhamento do paciente.</p>
+
+        <h2>4. Quem pode ver</h2>
+        <ul>
+          <li>Somente pessoas convidadas pelo administrador, cada uma ligada a <b>uma</b> unidade.</li>
+          <li>A separação entre unidades é feita pelo próprio banco de dados (regra de segurança em cada tabela), e não só pela tela.</li>
+          <li>Quem escaneia o <b>QR Code</b> de uma APAC vê apenas a unidade, a data, o procedimento e as <b>iniciais</b> do paciente, e pode abrir o PDF daquela APAC, que é o mesmo documento que já está em papel com o paciente. Cada QR Code tem um código longo, impossível de adivinhar.</li>
+        </ul>
+
+        <h2>5. Onde os dados ficam</h2>
+        <ul>
+          <li>No <b>Supabase</b> (banco de dados e arquivos), em servidores na região de <b>São Paulo</b>, com conexão sempre criptografada (HTTPS).</li>
+          <li>A página do sistema fica no <b>GitHub Pages</b>, que guarda apenas o programa, <b>nenhum dado de paciente</b>.</li>
+        </ul>
+
+        <h2>6. Uso de inteligência artificial</h2>
+        <p>Para ler laudos e conferir espelhos, o documento escolhido é enviado à IA <b>Claude</b>, da empresa Anthropic, pela sua interface de programação (API), com processamento fora do Brasil. Segundo os termos comerciais da Anthropic, os dados enviados pela API não são usados para treinar seus modelos. A chave de acesso fica guardada no servidor, nunca no navegador. A IA <b>sugere</b> os dados; quem confere e decide é sempre o profissional da unidade.</p>
+
+        <h2>7. Por quanto tempo</h2>
+        <p>Os registros ficam guardados enquanto forem necessários ao acompanhamento dos encaminhamentos e às obrigações da Secretaria Municipal de Saúde. O administrador pode apagar os dados de uma unidade quando ela deixar de usar o sistema. Cada unidade pode baixar uma cópia de segurança dos próprios dados.</p>
+
+        <h2>8. Direitos do paciente</h2>
+        <p>O paciente pode pedir para saber quais dados seus estão registrados, corrigir dados errados ou tirar dúvidas. O pedido deve ser feito <b>na unidade de saúde onde é atendido</b> ou à <b>Secretaria Municipal de Saúde</b>, que é a responsável pelos dados.</p>
+
+        <h2>9. Cuidados de quem usa</h2>
+        <ul>
+          <li>Não compartilhe sua senha. Ao sair do computador, clique em <b>Sair</b>.</li>
+          <li>Guarde as cópias de segurança e os PDFs baixados em local protegido e não os envie para quem não precisa.</li>
+          <li>Use o carimbo e a assinatura de um profissional somente com a autorização dele.</li>
+        </ul>
+
+        <p class="nota">Este aviso descreve como o sistema funciona. Ele não substitui as normas e a orientação do encarregado de proteção de dados (DPO) da Secretaria Municipal de Saúde.</p>
+      </div>
+    </div>
+    <footer><a href="../">apacdigital.com.br</a> · Geradora de APAC Externa online</footer>
+  </main>
+</body>
+</html>

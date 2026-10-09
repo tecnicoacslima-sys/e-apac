@@ -323,3 +323,8 @@ a.btn { text-decoration: none; }
 .faixa-versao-botao { background: var(--destaque); color: #13261B; border: 0; border-radius: 6px; padding: 7px 14px; font-weight: 700; cursor: pointer; }
 .faixa-versao-botao:disabled { opacity: .7; cursor: wait; }
 .faixa-versao-fechar { background: none; border: 0; color: #fff; opacity: .7; font-size: 20px; cursor: pointer; line-height: 1; }
+
+/* 🚫 APAC cancelada */
+.apac-cancelada td { background: #FBF0F0; }
+.apac-cancelada td strong { text-decoration: line-through; color: #8a6b6b; }
+.btn.perigo-texto { color: var(--vermelho); }

@@ -83,7 +83,8 @@ function montarEstrutura() {
       h('span', null, p.nome || p.email),
       h('button', { type: 'button', onclick: async () => { await dados.sair(); } }, 'Sair'))));
   app.appendChild(h('main', { id: 'tela' }));
-  app.appendChild(h('footer', { class: 'rodape-site' }, 'APAC digital · apacdigital.com.br'));
+  app.appendChild(h('footer', { class: 'rodape-site' }, 'APAC digital · apacdigital.com.br · ',
+    h('a', { href: 'privacidade/', target: '_blank', rel: 'noopener' }, 'Privacidade e LGPD')));
 }
 
 export function subtituloUnidade(u) {
@@ -147,6 +148,7 @@ function telaAcesso(...conteudo) {
         h('div', null, '© ' + new Date().getFullYear() + ' APAC digital. Todos os direitos reservados.'),
         h('div', null, 'Geradora de APAC Externa online')),
       h('div', { class: 'acesso-links' },
+        h('a', { href: 'privacidade/', target: '_blank', rel: 'noopener' }, '🔒 Privacidade e LGPD'),
         h('a', { href: 'https://apacdigital.com.br' }, 'apacdigital.com.br'))));
 }
 

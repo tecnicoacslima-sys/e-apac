@@ -42,7 +42,7 @@
       <div class="topo"><img src="../img/logo.svg" alt="APAC digital"><span>VERIFICAÇÃO DE APAC</span></div>
       <div class="corpo" id="resultado"><div class="carregando">Verificando o documento…</div></div>
     </div>
-    <footer><a href="https://apacdigital.com.br">apacdigital.com.br</a> · Geradora de APAC Externa online</footer>
+    <footer><a href="https://apacdigital.com.br">apacdigital.com.br</a> · Geradora de APAC Externa online · <a href="../privacidade/">Privacidade e LGPD</a></footer>
   </main>
   <script>
     (async function () {
@@ -62,6 +62,20 @@
         var a = r.data;
         if (!a) { erro('APAC não encontrada', 'Não existe APAC emitida pelo APAC digital com este código.'); return; }
         var quando = new Date(a.emitida_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+        if (a.cancelada_em) {
+          var quandoC = new Date(a.cancelada_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+          area.innerHTML =
+            '<div class="selo erro"><div class="icone">✕</div><div><h1>APAC cancelada</h1><p>Este documento foi cancelado pela unidade e não tem mais validade.</p></div></div>' +
+            '<dl>' +
+              '<dt>Unidade emissora</dt><dd>' + esc(a.unidade) + ([a.municipio, a.uf].filter(Boolean).length ? ' — ' + esc([a.municipio, a.uf].filter(Boolean).join('/')) : '') + '</dd>' +
+              '<dt>Gerada em</dt><dd>' + esc(quando) + '</dd>' +
+              '<dt>Cancelada em</dt><dd>' + esc(quandoC) + '</dd>' +
+              (a.cancelada_motivo ? '<dt>Motivo</dt><dd>' + esc(a.cancelada_motivo) + '</dd>' : '') +
+              '<dt>Paciente</dt><dd>' + esc(a.paciente || '—') + ' <span style="font-weight:400;color:#5E6E65">(iniciais)</span></dd>' +
+            '</dl>' +
+            '<p class="nota">Procure a unidade de saúde emissora para obter a APAC válida.</p>';
+          return;
+        }
         var pdf = a.pdf ? sb.storage.from('verificacao').getPublicUrl(a.pdf).data.publicUrl : '';
         var local = [a.municipio, a.uf].filter(Boolean).join('/');
         var proc = [a.proc_codigo, a.procedimento].filter(Boolean).join(' · ');
