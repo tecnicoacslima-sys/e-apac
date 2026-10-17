@@ -44,7 +44,7 @@ async function iniciar() {
   const hashInicial = window.__hashInicial || '';
   const veioDeConvite = /type=(invite|recovery|signup)/.test(hashInicial);
 
-  dados.sb.auth.onAuthStateChange((evento) => {
+  dados.aoMudarLogin((evento) => {
     if (evento === 'PASSWORD_RECOVERY') mostrarDefinirSenha('Defina sua nova senha');
     if (evento === 'SIGNED_OUT') mostrarLogin();
   });

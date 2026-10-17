@@ -56,6 +56,8 @@ export async function esqueciSenha(email) {
 }
 export async function definirSenha(senha) { ok(await sb.auth.updateUser({ password: senha })); }
 export async function sessaoAtual() { return (await sb.auth.getSession()).data.session; }
+/** Avisa quando o login muda: cb('PASSWORD_RECOVERY' | 'SIGNED_OUT' | …) */
+export function aoMudarLogin(cb) { sb.auth.onAuthStateChange((evento) => cb(evento)); }
 
 export async function carregarPerfil() {
   const p = ok(await sb.rpc('meu_perfil'));
@@ -148,6 +150,23 @@ export async function sigtapPorCodigos(codigos) {
   // aqui o mapa só tem os códigos pedidos, que são exatamente os que a regra consulta.
   return { mapa, competencia };
 }
+/** Grava uma parte da tabela SIGTAP (substitui códigos repetidos da mesma competência). */
+export async function gravarSigtapLote(linhas) {
+  ok(await sb.from('sigtap_procedimentos').upsert(linhas, { onConflict: 'competencia,codigo' }));
+}
+/** Apaga uma competência inteira. */
+export async function apagarCompetencia(competencia) {
+  ok(await sb.from('sigtap_procedimentos').delete().eq('competencia', competencia));
+}
+/** Apaga todas as competências mais antigas que a informada. */
+export async function apagarCompetenciasAnteriores(competencia) {
+  ok(await sb.from('sigtap_procedimentos').delete().lt('competencia', competencia));
+}
+/** Set com todos os códigos de uma competência. */
+export async function codigosDaCompetencia(competencia) {
+  const linhas = await todas(() => sb.from('sigtap_procedimentos').select('codigo').eq('competencia', competencia).order('codigo'));
+  return new Set(linhas.map((l) => l.codigo));
+}
 export async function infoSigtap() {
   const comp = ok(await sb.from('sigtap_procedimentos').select('competencia').order('competencia', { ascending: false }).limit(1));
   if (!comp.length) return { competencia: '', total: 0 };
@@ -186,6 +205,14 @@ export async function linkTemporario(bucket, caminho, segundos = 600) {
 export async function baixarArquivo(bucket, caminho) {
   return ok(await sb.storage.from(bucket).download(caminho));
 }
+/** Apaga um arquivo guardado. Não avisa erro (usado para limpar arquivo antigo). */
+export async function removerArquivo(bucket, caminho) {
+  try { await sb.storage.from(bucket).remove([caminho]); } catch (e) { /* tudo bem */ }
+}
+/** Link permanente de um bucket PÚBLICO (só para arquivos sem dados reais, ex.: exemplos). */
+export function linkPublico(bucket, caminho, nomeDownload) {
+  return sb.storage.from(bucket).getPublicUrl(caminho, nomeDownload ? { download: nomeDownload } : undefined).data.publicUrl;
+}
 export async function registrarApac(linha) {
   return ok(await sb.from('apacs').insert(linha).select('id').single());
 }
@@ -201,6 +228,22 @@ export async function listarApacs(limite = 100) {
     .order('criado_em', { ascending: false }).limit(limite));
 }
 
+// ---------------- CONFERÊNCIAS ----------------
+/** Grava uma conferência. Devolve { id, criado_em }. */
+export async function registrarConferencia(linha) {
+  return ok(await sb.from('conferencias').insert(linha).select('id, criado_em').single());
+}
+/** As 100 conferências mais recentes; texto = parte do nome ou do CNS (6+ números). */
+export async function listarConferencias(texto, limite = 100) {
+  let q = sb.from('conferencias').select('id, criado_em, paciente, cns, fontes, campos, resumo, relatorio_path');
+  const t = String(texto || '').trim().replace(/[%,()*]/g, ' ').trim();
+  if (t) {
+    const dig = t.replace(/\D/g, '');
+    q = dig.length >= 6 ? q.ilike('cns', '*' + dig + '*') : q.ilike('paciente', '*' + t.toUpperCase() + '*');
+  }
+  return ok(await q.order('criado_em', { ascending: false }).limit(limite)) || [];
+}
+
 // ---------------- PROTOCOLO ----------------
 export async function salvarProtocolo(p, forcar = false) {
   return ok(await sb.rpc('salvar_protocolo', { p, p_forcar: forcar }));
@@ -214,6 +257,10 @@ export async function listarProtocolo({ de, ate, texto } = {}) {
     if (t) q = q.or('nome_paciente.ilike.*' + t + '*,procedimento.ilike.*' + t + '*,codigo.ilike.*' + t + '*');
     return q.order('criado_em', { ascending: false });
   });
+}
+/** Inclui uma linha digitada à mão no protocolo. Devolve { id }. */
+export async function incluirProtocolo(linha) {
+  return ok(await sb.from('protocolo').insert(linha).select('id').single());
 }
 export async function atualizarProtocolo(id, campos) {
   ok(await sb.from('protocolo').update(campos).eq('id', id));
@@ -271,6 +318,10 @@ export async function criarUnidade({ nome, municipio, uf, limite, copiarDe }) {
   }));
 }
 export async function atualizarUnidade(id, campos) { ok(await sb.from('unidades').update(campos).eq('id', id)); }
+/** Apaga os dados de uma unidade (cadastros = true apaga também CNES, profissionais e referência). */
+export async function limparUnidade(unidadeId, confirmacao, cadastros) {
+  return ok(await sb.rpc('limpar_unidade', { p_unidade: unidadeId, p_confirmacao: confirmacao, p_cadastros: cadastros }));
+}
 export async function gerarCodigoLegado(id) { return ok(await sb.rpc('gerar_codigo_legado', { p_unidade: id })); }
 export async function listarPerfis() { return ok(await sb.from('perfis').select('*').order('email')); }
 export async function atualizarPerfil(userId, campos) { ok(await sb.from('perfis').update(campos).eq('user_id', userId)); }
