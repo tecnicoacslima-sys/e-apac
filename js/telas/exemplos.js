@@ -41,7 +41,7 @@ const PACIENTES = [
 /** Link público para baixar o arquivo (o bucket é público e só tem dados fictícios). */
 function linkDownload(caminho) {
   const nome = caminho.split('/').pop();
-  return dados.sb.storage.from(BUCKET).getPublicUrl(caminho, { download: nome }).data.publicUrl;
+  return dados.linkPublico(BUCKET, caminho, nome);
 }
 
 function cartaoPaciente(p) {

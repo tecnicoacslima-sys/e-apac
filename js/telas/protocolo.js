@@ -234,17 +234,12 @@ function editarLinha(l) {
         const btn = janela.el.querySelector('.modal-rodape .principal');
         await comCarregando(btn, 'Salvando…', async () => {
           try {
-            const res = nova
-              ? await dados.sb.from('protocolo').insert(v)
-              : await dados.sb.from('protocolo').update(v).eq('id', l.id);
-            if (res.error) throw new Error(dados.traduzirErro(res.error));
+            const incluida = nova ? await dados.incluirProtocolo(v) : null;
+            if (!nova) await dados.atualizarProtocolo(l.id, v);
             fechar();
             toast(v.nome_paciente + ' — ' + v.procedimento, nova ? '✅ Incluído no protocolo' : '✅ Linha corrigida');
-            if (nova) {
-              // a linha nova já entra marcada, pronta para imprimir
-              const r = await dados.sb.from('protocolo').select('id').order('id', { ascending: false }).limit(1);
-              if (r.data && r.data[0]) marcadas.add(r.data[0].id);
-            }
+            // a linha nova já entra marcada, pronta para imprimir
+            if (incluida && incluida.id) marcadas.add(incluida.id);
             if (recarregarLista) recarregarLista(true);
           } catch (e) {
             status.innerHTML = '<div class="msg erro">' + esc(e.message) + '</div>';

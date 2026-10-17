@@ -134,13 +134,12 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
     try {
       for (let i = 0; i < r.linhas.length; i += LOTE) {
         const parte = r.linhas.slice(i, i + LOTE);
-        const { error } = await dados.sb.from('sigtap_procedimentos').upsert(parte, { onConflict: 'competencia,codigo' });
-        if (error) throw new Error(dados.traduzirErro(error));
+        await dados.gravarSigtapLote(parte);
         avancar(Math.min(i + LOTE, r.linhas.length));
       }
     } catch (e) {
       // competência nova pela metade: tira do banco para o sistema não usar uma tabela incompleta
-      if (!mesma) await dados.sb.from('sigtap_procedimentos').delete().eq('competencia', r.competencia);
+      if (!mesma) { try { await dados.apagarCompetencia(r.competencia); } catch (e2) { /* segue com o aviso abaixo */ } }
       progresso.remove();
       status.appendChild(h('div', { class: 'msg erro' }, '❌ Não consegui gravar: ' + e.message +
         (mesma ? '' : ' Nada foi alterado; a tabela anterior continua em uso.')));
@@ -150,8 +149,12 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
 
     let apagadas = '';
     if (apagarAntigas) {
-      const { error } = await dados.sb.from('sigtap_procedimentos').delete().lt('competencia', r.competencia);
-      apagadas = error ? ' (não consegui apagar a tabela antiga: ' + dados.traduzirErro(error) + ')' : ' A tabela antiga foi apagada.';
+      try {
+        await dados.apagarCompetenciasAnteriores(r.competencia);
+        apagadas = ' A tabela antiga foi apagada.';
+      } catch (e) {
+        apagadas = ' (não consegui apagar a tabela antiga: ' + e.message + ')';
+      }
     }
     progresso.remove();
     status.innerHTML = '';
@@ -166,13 +169,5 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
 
 /** Todos os códigos de uma competência (de 1000 em 1000). */
 async function codigosDaCompetencia(competencia) {
-  const set = new Set();
-  for (let inicio = 0; ; inicio += 1000) {
-    const { data, error } = await dados.sb.from('sigtap_procedimentos').select('codigo')
-      .eq('competencia', competencia).order('codigo').range(inicio, inicio + 999);
-    if (error) throw new Error(dados.traduzirErro(error));
-    data.forEach((l) => set.add(l.codigo));
-    if (data.length < 1000) break;
-  }
-  return set;
+  return dados.codigosDaCompetencia(competencia);
 }

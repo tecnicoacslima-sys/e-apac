@@ -295,8 +295,7 @@ async function comparar(botao) {
       // registro
       const linha = { paciente: conf.paciente, cns: conf.cns, fontes: conf.fontes, campos: conf.campos,
                       resumo: conf.resumo, relatorio_path: caminho };
-      const { data: salvo, error } = await dados.sb.from('conferencias').insert(linha).select('id, criado_em').single();
-      if (error) throw new Error(dados.traduzirErro(error));
+      const salvo = await dados.registrarConferencia(linha);
 
       mostrarResultado({ ...linha, ...salvo }, bytes);
       toast('Conferência concluída para ' + (conf.paciente || 'o paciente') + '.', '✅ Pronto');
@@ -439,15 +438,7 @@ async function carregarHistorico() {
   if (!areaHistorico) return;
   areaHistorico.innerHTML = '<div class="carregando"><span class="spinner"></span>Carregando…</div>';
   try {
-    let q = dados.sb.from('conferencias').select('id, criado_em, paciente, cns, fontes, campos, resumo, relatorio_path');
-    const t = String(campoBusca && campoBusca.value || '').trim().replace(/[%,()*]/g, ' ').trim();
-    if (t) {
-      const dig = t.replace(/\D/g, '');
-      q = dig.length >= 6 ? q.ilike('cns', '*' + dig + '*') : q.ilike('paciente', '*' + t.toUpperCase() + '*');
-    }
-    const { data, error } = await q.order('criado_em', { ascending: false }).limit(100);
-    if (error) throw new Error(dados.traduzirErro(error));
-    desenharHistorico(data || []);
+    desenharHistorico(await dados.listarConferencias(campoBusca && campoBusca.value));
   } catch (e) {
     areaHistorico.innerHTML = '';
     areaHistorico.appendChild(h('div', { class: 'msg erro' }, '❌ ' + e.message));

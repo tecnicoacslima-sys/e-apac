@@ -143,9 +143,7 @@ function limparUnidade(u, aoTerminar) {
         const btn = janela.el.querySelector('.modal-rodape .perigo');
         await comCarregando(btn, 'Apagando…', async () => {
           try {
-            const { data: r, error } = await dados.sb.rpc('limpar_unidade',
-              { p_unidade: u.id, p_confirmacao: confirmacao.value, p_cadastros: cadastros.checked });
-            if (error) throw new Error(dados.traduzirErro(error));
+            const r = await dados.limparUnidade(u.id, confirmacao.value, cadastros.checked);
             const linhas = [
               fmtNum(r.pacientes) + ' paciente(s)', fmtNum(r.protocolo) + ' linha(s) do protocolo',
               fmtNum(r.apacs) + ' APAC(s) gerada(s)', fmtNum(r.conferencias) + ' conferência(s)'];

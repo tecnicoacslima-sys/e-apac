@@ -255,7 +255,7 @@ async function abrirAssinatura(prof, aoMudar) {
           const antigo = prof.assinatura_path;
           const salvo = await dados.salvarCadastro('profissionais', { id: prof.id, assinatura_path: null, assinatura_autorizada_em: null, assinatura_autorizada_por: null });
           Object.assign(prof, salvo);
-          dados.sb.storage.from('logos').remove([antigo]).catch(() => {});
+          dados.removerArquivo('logos', antigo);
           toast('Carimbo e assinatura removidos.', '✍️ ' + prof.nome);
           fechar(); aoMudar();
         } catch (e) { alerta('Não removeu', esc(e.message)); }
@@ -272,7 +272,7 @@ async function abrirAssinatura(prof, aoMudar) {
             const salvo = await dados.salvarCadastro('profissionais', { id: prof.id, assinatura_path: caminho,
               assinatura_autorizada_em: new Date().toISOString(), assinatura_autorizada_por: quem });
             Object.assign(prof, salvo);
-            if (antigo && antigo !== caminho) dados.sb.storage.from('logos').remove([antigo]).catch(() => {});
+            if (antigo && antigo !== caminho) dados.removerArquivo('logos', antigo);
           });
           toast('Carimbo e assinatura salvos.', '✍️ ' + prof.nome);
           fechar(); aoMudar();
