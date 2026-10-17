@@ -1,12 +1,13 @@
 {
- "versao": "20261009T2230",
- "gerado": "2026-10-09T22:30:23.936Z",
+ "versao": "20261017T1930",
+ "gerado": "2026-10-17T19:27:26.000Z",
  "arquivos": [
   "config.js",
   "css/app.css",
   "index.html",
   "js/app.js",
   "js/dados.js",
+  "js/lib/comprimir-pdf.js",
   "js/lib/conferencia.js",
   "js/lib/copia.js",
   "js/lib/endereco.js",
