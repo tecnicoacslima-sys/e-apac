@@ -1,5 +1,10 @@
 /**
- * FERRAMENTAS (antes: menu 📋 APAC ▸ 🔧 Ferramentas)
+ * FERRAMENTAS — abre UMA ferramenta por vez.
+ *   #/ferramentas            → lista de ferramentas (cartões pequenos para escolher)
+ *   #/ferramentas/<chave>    → só aquela ferramenta (o topo tem o menu em cascata)
+ * A lista (rótulos, ícones, quem vê) fica em app.js ▸ SUB_FERRAMENTAS.
+ *
+ * Ferramentas:
  *   📊 Consumo da IA · 🔌 Testar acesso à IA · 🪪 Conferir Cartões SUS
  *   ✏️ Dados da unidade (+ brasão) · 📥 Importar planilha antiga
  *   📎 Juntar PDFs · 💾 Cópia de segurança · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador
@@ -8,17 +13,55 @@ import * as dados from '../dados.js';
 import { h, toast, comCarregando, listaHtml, alerta } from '../ui.js';
 import { esc, fmtNum, rotuloMes, partesData } from '../lib/texto.js';
 import { motivoCNSInvalido, validarCPF, soDigitos } from '../lib/validacao.js';
-import { atualizarSubtitulo } from '../app.js';
+import { atualizarSubtitulo, ferramentasVisiveis } from '../app.js';
 import { abrirAtualizarSigtap } from './atualizar-sigtap.js';
 import { rotuloCompetencia } from '../lib/sigtap-zip.js';
 import { montarPlanilhaCopia, nomeArquivoCopia } from '../lib/copia.js';
 
+const CARTOES = {
+  copia: () => cartaoCopia(),
+  consumo: () => cartaoConsumo(),
+  juntar: () => cartaoJuntar(),
+  unidade: () => cartaoUnidade(),
+  cartoes: () => cartaoCartoes(),
+  'teste-ia': () => cartaoTesteIA(),
+  sigtap: () => cartaoSigtap(),
+  importar: () => cartaoImportar()
+};
+
+const ESTILO = `
+.ferr-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.ferr-item { display: flex; gap: 12px; align-items: flex-start; padding: 14px; background: var(--card); border: 1px solid var(--borda-card);
+  border-radius: var(--raio); box-shadow: var(--sombra); text-decoration: none; color: var(--texto); transition: border-color .15s, transform .15s; }
+.ferr-item:hover, .ferr-item:focus { border-color: var(--verde); transform: translateY(-1px); outline: none; }
+.ferr-item .ico { font-size: 24px; line-height: 1; }
+.ferr-item b { display: block; color: var(--primaria); margin-bottom: 3px; }
+.ferr-item span.desc { font-size: 12.5px; color: var(--rotulo); }
+.ferr-aberta { max-width: 760px; }
+.ferr-voltar { display: inline-block; margin-bottom: 10px; font-size: 13px; font-weight: 600; text-decoration: none; }
+`;
+
 export async function montar(area) {
+  if (!document.getElementById('estilo-ferramentas')) document.head.appendChild(h('style', { id: 'estilo-ferramentas' }, ESTILO));
+  const lista = ferramentasVisiveis();
+  const m = location.hash.match(/^#\/ferramentas\/([a-z-]+)/);
+  const escolhida = m && lista.find((f) => f.chave === m[1]);
+
+  if (!escolhida) {
+    area.append(
+      h('div', { class: 'titulo-tela' }, h('div', null,
+        h('h1', null, '🔧 Ferramentas'),
+        h('p', { class: 'mudo' }, 'Escolha a ferramenta.'))),
+      h('div', { class: 'ferr-lista' }, ...lista.map((f) =>
+        h('a', { class: 'ferr-item', href: '#/ferramentas/' + f.chave },
+          h('span', { class: 'ico' }, f.icone),
+          h('span', null, h('b', null, f.rotulo), h('span', { class: 'desc' }, f.desc))))));
+    return;
+  }
+
   area.append(
-    h('div', { class: 'titulo-tela' }, h('div', null, h('h1', null, '🔧 Ferramentas'))),
-    h('div', { class: 'grade-cards' },
-      cartaoCopia(), cartaoConsumo(), cartaoJuntar(), cartaoUnidade(), cartaoCartoes(), cartaoTesteIA(),
-      dados.souAdmin() ? cartaoSigtap() : null, cartaoImportar()));
+    h('a', { class: 'ferr-voltar', href: '#/ferramentas' }, '← Todas as ferramentas'),
+    h('div', { class: 'ferr-aberta' }, CARTOES[escolhida.chave]()));
 }
 
 // ---------------- 📊 CONSUMO DA IA ----------------
