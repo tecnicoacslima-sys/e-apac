@@ -119,17 +119,24 @@ function montarEstrutura() {
     h('a', { href: 'privacidade/', target: '_blank', rel: 'noopener' }, 'Privacidade e LGPD')));
 }
 
-/** "Ferramentas ▾" no topo + a lista que abre embaixo (em cascata). */
+/**
+ * "Ferramentas ▾" no topo + a lista que abre embaixo (em cascata).
+ * Computador: clicar abre a lista; clicar de novo, num item, fora dela ou Esc fecha.
+ * Celular (tela estreita): o clique abre a página com os atalhos (#/ferramentas).
+ */
+const CELULAR = '(max-width: 720px)';
 function grupoFerramentas(t) {
   const grupo = h('div', { class: 'menu-grupo' });
-  // depois de escolher, fecha a lista mesmo com o mouse ainda em cima
-  const fechar = () => {
-    grupo.classList.add('fechar');
-    if (document.activeElement && grupo.contains(document.activeElement)) document.activeElement.blur();
+  const fechar = () => grupo.classList.remove('aberto');
+  const cliqueNoTitulo = (e) => {
+    if (window.matchMedia(CELULAR).matches) { fechar(); return; }   // celular: segue para a página
+    e.preventDefault();
+    grupo.classList.toggle('aberto');
   };
-  grupo.addEventListener('mouseleave', () => grupo.classList.remove('fechar'));
+  document.addEventListener('click', (e) => { if (!grupo.contains(e.target)) fechar(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fechar(); });
   grupo.append(
-    h('a', { href: '#/ferramentas', 'data-tela': 'ferramentas', 'aria-haspopup': 'true', onclick: fechar }, t.rotulo, h('span', { class: 'seta' }, ' ▾')),
+    h('a', { href: '#/ferramentas', 'data-tela': 'ferramentas', 'aria-haspopup': 'true', onclick: cliqueNoTitulo }, t.rotulo, h('span', { class: 'seta' }, ' ▾')),
     h('div', { class: 'submenu', role: 'menu' },
       ...ferramentasVisiveis().map((f) => h('a', { href: '#/ferramentas/' + f.chave, role: 'menuitem', onclick: fechar },
         h('span', { class: 'ico' }, f.icone), f.rotulo))));
