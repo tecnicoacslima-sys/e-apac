@@ -8,6 +8,10 @@
  * Diferença para a planilha: os arquivos vêm do computador (não de uma pasta
  * do Drive) e aceitam PDF ou foto (JPG/PNG), até 3 arquivos por documento
  * (ex.: RG frente e verso).
+ *
+ * 🗜️ Caixa EXAMES (separada da conferência): junta e comprime os exames num
+ * PDF próprio (exames_NOME_DATA.pdf), abaixo do limite de 20 MB do CELK.
+ * Não entra na comparação com IA nem no PDF de espelhos+docs+res.
  */
 import * as dados from '../dados.js';
 import { h, toast, modal, alerta, comCarregando, lerArquivoBase64, atrasar, abrirPdfGuardado, baixarPdf } from '../ui.js';
@@ -18,18 +22,21 @@ import {
   fontesDaConferencia, caminhoRelatorio
 } from '../lib/conferencia.js';
 import { gerarPdfConferencia } from '../lib/pdf-conferencia.js';
-import { juntarPdfs, nomePdfUnico } from '../lib/juntar-pdf.js';
+import { juntarPdfs, nomePdfUnico, nomeSobrenome, tipoParaJuntar } from '../lib/juntar-pdf.js';
+import { comprimirExames, LIMITE_EXAMES_MB, textoMB, nomePdfExames } from '../lib/comprimir-pdf.js';
 import { arquivosParaItens } from './juntar-pdf.js';
 
 let selecao = {};
 let zonas = {};
+let selecaoExames = [];     // exames: separados da conferência (não vão para a IA)
+let desenharExames = null;
 let areaResultado = null;
 let areaHistorico = null;
 let campoBusca = null;
 let ultimoPaciente = '';   // nome do paciente da última comparação (para o nome do PDF único)
 
 const ESTILO = `
-.conf-fontes { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.conf-fontes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
 .conf-fonte { border: 2px dashed #C9D3DE; border-radius: 8px; padding: 12px; background: #FAFBFC; display: flex; flex-direction: column; gap: 6px; min-height: 130px; }
 .conf-fonte.tem { border-style: solid; border-color: var(--verde); background: #F0F7F2; }
 .conf-fonte.arrastando { border-color: var(--secundaria); background: var(--busca-fundo); }
@@ -41,6 +48,14 @@ const ESTILO = `
 .conf-fonte li button { border: 0; background: none; cursor: pointer; color: var(--vermelho); font-size: 15px; line-height: 1; }
 .conf-fonte label.escolher { margin-top: auto; text-align: center; cursor: pointer; border: 1px solid #BFD6EE; border-radius: 6px; padding: 7px; background: #fff; color: var(--primaria); font-weight: 600; font-size: 13px; }
 .conf-fonte label.escolher input { display: none; }
+.conf-fonte.exames { border-color: #B9C7E6; background: #F7F9FD; }
+.conf-fonte.exames.tem { border-color: var(--secundaria); background: #EEF3FB; }
+.conf-fonte.exames li span { color: var(--primaria); }
+.conf-fonte .tam { color: var(--suave); font-weight: 400; font-size: 11.5px; white-space: nowrap; }
+.conf-fonte .total { font-size: 12px; color: var(--suave); }
+.conf-fonte .acoes-exames { display: flex; flex-direction: column; gap: 6px; margin-top: auto; }
+.conf-fonte .acoes-exames label.escolher { margin-top: 0; }
+.conf-fonte .acoes-exames button { font-size: 13px; padding: 7px; }
 .conf-tabela td { vertical-align: top !important; font-size: 12.5px; }
 .conf-tabela tr.div td { background: #FBE3E3; }
 .conf-tabela tr.atencao td { background: #FDF3DA; }
@@ -56,6 +71,7 @@ export async function montar(area) {
   }
   selecao = {};
   zonas = {};
+  selecaoExames = [];
   CONF_FONTES.forEach((f) => { selecao[f.chave] = []; });
 
   const botaoComparar = h('button', { type: 'button', class: 'btn principal', onclick: (e) => comparar(e.currentTarget) },
@@ -75,7 +91,7 @@ export async function montar(area) {
         h('p', { class: 'pequeno mudo', style: { marginTop: '0' } },
           'Escolha os arquivos de pelo menos 2 documentos. Aceita PDF ou foto (JPG/PNG); até ' + CONF.MAX_ARQUIVOS_FONTE +
           ' arquivos por documento (ex.: RG frente e verso). Limite total: ' + CONF.LIMITE_MB + ' MB.'),
-        h('div', { class: 'conf-fontes' }, ...CONF_FONTES.map(caixaFonte)),
+        h('div', { class: 'conf-fontes' }, ...CONF_FONTES.map(caixaFonte), caixaExames()),
         h('div', { class: 'botoes', style: { marginTop: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap' } },
           botaoComparar,
           h('button', { type: 'button', class: 'btn', title: 'SUS → CELK → documento → comprovante, num PDF só (não usa IA)',
@@ -129,7 +145,87 @@ function caixaFonte(f) {
 function limparSelecao() {
   ultimoPaciente = '';
   CONF_FONTES.forEach((f) => { selecao[f.chave] = []; zonas[f.chave].desenhar(); });
+  selecaoExames = [];
+  if (desenharExames) desenharExames();
   areaResultado.innerHTML = '';
+}
+
+// ============================================================
+// 🗜️ CAIXA EXAMES — junta + comprime num PDF separado (sem IA, no navegador)
+// ============================================================
+function caixaExames() {
+  const lista = h('ul');
+  const total = h('div', { class: 'total' });
+  const input = h('input', { type: 'file', multiple: true, accept: 'application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png' });
+  const botao = h('button', { type: 'button', class: 'btn', title: 'Junta os exames num PDF separado, abaixo de 20 MB (limite do CELK)',
+    onclick: (e) => comprimirESalvar(e.currentTarget, ultimoPaciente) }, '🗜️ Comprimir');
+  const caixa = h('div', { class: 'conf-fonte exames' },
+    h('div', { class: 'tit' }, 'Exames ', h('span', { class: 'opc' }, '(PDF separado)')),
+    lista, total,
+    h('div', { class: 'acoes-exames' }, h('label', { class: 'escolher' }, '📄 Escolher', input), botao));
+
+  const adicionar = (arquivos) => {
+    const novos = Array.from(arquivos || []);
+    const ruins = novos.filter((a) => !tipoParaJuntar(a));
+    if (ruins.length) toast('"' + ruins[0].name + '" não é PDF, JPG ou PNG.', 'Exames', 'aviso');
+    selecaoExames = selecaoExames.concat(novos.filter((a) => tipoParaJuntar(a)));
+    desenhar();
+  };
+  const desenhar = () => {
+    lista.innerHTML = '';
+    selecaoExames.forEach((a, i) => lista.appendChild(h('li', null,
+      h('span', null, a.name, ' ', h('span', { class: 'tam' }, textoMB(a.size || 0))),
+      h('button', { type: 'button', title: 'Tirar este arquivo', onclick: () => { selecaoExames.splice(i, 1); desenhar(); } }, '×'))));
+    const soma = selecaoExames.reduce((s, a) => s + (a.size || 0), 0);
+    total.textContent = selecaoExames.length
+      ? selecaoExames.length + ' arquivo(s) · ' + textoMB(soma) + (soma > LIMITE_EXAMES_MB * 1048576 ? ' — vai precisar comprimir' : '')
+      : 'Vários arquivos? A ordem de escolha é a ordem no PDF.';
+    caixa.classList.toggle('tem', selecaoExames.length > 0);
+  };
+  input.addEventListener('change', () => { adicionar(input.files); input.value = ''; });
+  caixa.addEventListener('dragover', (e) => { e.preventDefault(); caixa.classList.add('arrastando'); });
+  caixa.addEventListener('dragleave', () => caixa.classList.remove('arrastando'));
+  caixa.addEventListener('drop', (e) => { e.preventDefault(); caixa.classList.remove('arrastando'); adicionar(e.dataTransfer.files); });
+  desenharExames = desenhar;
+  desenhar();
+  return caixa;
+}
+
+async function comprimirESalvar(botao, paciente) {
+  if (!selecaoExames.length) {
+    alerta('Falta algo', 'Escolha os arquivos dos exames na caixa "Exames".');
+    return;
+  }
+  if (!paciente) {
+    perguntarNome((nome) => comprimirESalvar(botao, nome), {
+      textoBotao: '🗜️ Comprimir e baixar',
+      previa: (nome) => nomePdfExames(nomeSobrenome(nome))
+    });
+    return;
+  }
+  try {
+    const r = await comCarregando(botao, 'Preparando…', async () => {
+      const progresso = (texto) => { botao.innerHTML = '<span class="spinner"></span>' + esc(texto); };
+      const itens = await arquivosParaItens(selecaoExames);
+      const mbAntes = selecaoExames.reduce((s, a) => s + (a.size || 0), 0) / 1048576;
+      return comprimirExames(window.PDFLib, itens, {
+        limiteMB: LIMITE_EXAMES_MB, mbAntes, aoProgredir: progresso,
+        titulo: String(paciente).trim() ? String(paciente).trim() + ' — exames' : 'Exames'
+      });
+    });
+    baixarPdf(r.bytes, nomePdfExames(nomeSobrenome(paciente)));
+    const resumo = 'Antes: ' + textoMB(r.mbAntes, true) + ' → depois: ' + textoMB(r.mbDepois, true) + ' (' + r.paginas + ' página(s)).';
+    if (r.coube) {
+      toast(resumo + (r.nivel === 'original' ? ' Já cabia, não precisou comprimir.' : ' Qualidade: ' + r.nivel + '.'), '🗜️ Exames salvos');
+    } else {
+      alerta('Ficou acima de 20 MB',
+        esc(resumo) + '<br><br>Mesmo na compressão mais forte o arquivo passou do limite do CELK. ' +
+        'Salvei a versão mais leve, mas divida os exames em duas partes (ex.: metade em cada) e comprima de novo.');
+    }
+  } catch (e) {
+    console.error(e);
+    alerta('Não consegui comprimir', esc(e.message) + '<br><br>Se for PDF com senha, abra e salve sem senha antes.');
+  }
 }
 
 /** Foto grande → JPEG menor (a IA lê bem até ~1600 px). Devolve base64. */
@@ -236,7 +332,7 @@ async function juntarDocumentos(botao, paciente) {
     alerta('Falta algo', 'Escolha os arquivos nas caixas acima (SUS, CELK, documento, comprovante de endereço).');
     return;
   }
-  if (!paciente) { perguntarNome(botao); return; }
+  if (!paciente) { perguntarNome((nome) => juntarDocumentos(botao, nome)); return; }
   try {
     await comCarregando(botao, 'Juntando…', async () => {
       const itens = await arquivosParaItens(arquivos);
@@ -249,17 +345,21 @@ async function juntarDocumentos(botao, paciente) {
   }
 }
 
-/** Sem comparação ainda: pergunta o nome do paciente para dar nome ao arquivo. */
-function perguntarNome(botao) {
+/**
+ * Sem comparação ainda: pergunta o nome do paciente para dar nome ao arquivo.
+ * aoConfirmar(nome) segue com o trabalho; op = { textoBotao, previa(nome) }.
+ */
+function perguntarNome(aoConfirmar, op = {}) {
   const campo = h('input', { placeholder: 'ex.: Bianca Almeida', style: { width: '100%' } });
   const previa = h('div', { class: 'pequeno mudo', style: { marginTop: '6px' } });
-  const atualizar = () => { previa.textContent = 'Arquivo: ' + nomePdfUnico(campo.value || ''); };
+  const nomeArquivo = op.previa || ((nome) => nomePdfUnico(nome));
+  const atualizar = () => { previa.textContent = 'Arquivo: ' + nomeArquivo(campo.value || ''); };
   campo.addEventListener('input', atualizar);
   atualizar();
   const seguir = (fechar) => {
     const nome = String(campo.value || '').trim();
     fechar();
-    juntarDocumentos(botao, nome || ' ');
+    aoConfirmar(nome || ' ');
   };
   const m = modal({
     titulo: '📎 Nome do paciente',
@@ -267,7 +367,7 @@ function perguntarNome(botao) {
       h('p', { style: { marginTop: '0' } }, 'Digite o nome e o sobrenome do paciente para dar nome ao arquivo (pode deixar em branco).'),
       campo, previa),
     botoes: [
-      { texto: '📎 Juntar e baixar', classe: 'principal', acao: seguir },
+      { texto: op.textoBotao || '📎 Juntar e baixar', classe: 'principal', acao: seguir },
       { texto: 'Cancelar' }
     ]
   });
@@ -425,6 +525,7 @@ async function abrirRelatorio(c, botao) {
 }
 
 export function desmontar() {
+  desenharExames = null;
   areaResultado = null;
   areaHistorico = null;
 }
