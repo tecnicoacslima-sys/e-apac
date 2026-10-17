@@ -62,8 +62,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: #fff; border: 1px solid var(--borda-card); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .16);
   padding: 6px;
 }
-.menu-grupo:hover:not(.fechar) .submenu,
-.menu-grupo:focus-within:not(.fechar) .submenu { display: block; }
+.menu-grupo.aberto .submenu { display: block; }
 .menu .submenu a { display: flex; align-items: center; gap: 8px; color: var(--texto); font-weight: 600; padding: 8px 10px; border-radius: 6px; white-space: nowrap; }
 .menu .submenu a:hover, .menu .submenu a:focus { background: var(--busca-fundo, #EEF5F1); color: var(--primaria); outline: none; }
 .menu .submenu .ico { width: 20px; text-align: center; }
