@@ -21,6 +21,25 @@ const TELAS = {
   admin:       { rotulo: 'Admin',       carregar: () => import('./telas/admin.js'), soAdmin: true }
 };
 
+/**
+ * Submenu de Ferramentas (abre ao passar o mouse em "Ferramentas" no topo).
+ * Cada item abre só aquela ferramenta: #/ferramentas/<chave>.
+ * A tela Ferramentas usa esta mesma lista (rótulos num lugar só).
+ */
+export const SUB_FERRAMENTAS = [
+  { chave: 'copia',    icone: '💾', rotulo: 'Cópia de segurança',       desc: 'Baixa todos os dados da unidade numa planilha Excel.' },
+  { chave: 'consumo',  icone: '📊', rotulo: 'Consumo da IA',            desc: 'Chamadas e tokens usados em cada mês.' },
+  { chave: 'juntar',   icone: '📎', rotulo: 'Juntar PDFs',              desc: 'Vários PDFs e fotos num arquivo só.' },
+  { chave: 'unidade',  icone: '✏️', rotulo: 'Dados da unidade',         desc: 'Nome, município, e-mail da secretaria e brasão.' },
+  { chave: 'cartoes',  icone: '🪪', rotulo: 'Conferir Cartões SUS',     desc: 'Confere o CNS e o CPF de profissionais e pacientes.' },
+  { chave: 'teste-ia', icone: '🔌', rotulo: 'Acesso à IA',              desc: 'Confere se a IA está respondendo.' },
+  { chave: 'sigtap',   icone: '📦', rotulo: 'Atualizar tabela SIGTAP',  desc: 'Monta a tabela oficial pelo .zip do DATASUS.', soAdmin: true },
+  { chave: 'importar', icone: '📥', rotulo: 'Importar planilha antiga', desc: 'Traz os dados da planilha GERADORA (.xlsx).' }
+];
+export function ferramentasVisiveis() {
+  return SUB_FERRAMENTAS.filter((f) => !f.soAdmin || dados.souAdmin());
+}
+
 const app = document.getElementById('app');
 
 /** A tela "Exemplos" só aparece para a unidade TESTE (demonstração) e para o administrador. */
@@ -82,6 +101,7 @@ function montarEstrutura() {
   Object.entries(TELAS).forEach(([chave, t]) => {
     if (t.escondido) return;
     if (!podeVer(t)) return;
+    if (chave === 'ferramentas') { menu.appendChild(grupoFerramentas(t)); return; }
     menu.appendChild(h('a', { href: '#/' + chave, 'data-tela': chave }, t.rotulo));
   });
 
@@ -97,6 +117,23 @@ function montarEstrutura() {
   app.appendChild(h('main', { id: 'tela' }));
   app.appendChild(h('footer', { class: 'rodape-site' }, 'APAC digital · apacdigital.com.br · ',
     h('a', { href: 'privacidade/', target: '_blank', rel: 'noopener' }, 'Privacidade e LGPD')));
+}
+
+/** "Ferramentas ▾" no topo + a lista que abre embaixo (em cascata). */
+function grupoFerramentas(t) {
+  const grupo = h('div', { class: 'menu-grupo' });
+  // depois de escolher, fecha a lista mesmo com o mouse ainda em cima
+  const fechar = () => {
+    grupo.classList.add('fechar');
+    if (document.activeElement && grupo.contains(document.activeElement)) document.activeElement.blur();
+  };
+  grupo.addEventListener('mouseleave', () => grupo.classList.remove('fechar'));
+  grupo.append(
+    h('a', { href: '#/ferramentas', 'data-tela': 'ferramentas', 'aria-haspopup': 'true', onclick: fechar }, t.rotulo, h('span', { class: 'seta' }, ' ▾')),
+    h('div', { class: 'submenu', role: 'menu' },
+      ...ferramentasVisiveis().map((f) => h('a', { href: '#/ferramentas/' + f.chave, role: 'menuitem', onclick: fechar },
+        h('span', { class: 'ico' }, f.icone), f.rotulo))));
+  return grupo;
 }
 
 export function subtituloUnidade(u) {
