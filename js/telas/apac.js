@@ -377,8 +377,9 @@ function montarPainel() {
         h('button', { type: 'button', class: 'acao-extra azul', title: 'Lê só Data de entrada, Observações, Unidade e Profissional solicitante do relatório do G-MUS',
           onclick: () => lerRelatorioGmus() }, '📋 Ler relatório G-MUS (4 campos)'),
         botao('verde', '3', 'Gerar APAC em PDF', 'Confere os campos e gera o laudo', (b) => passo3GerarPdf(b, false)),
-        h('button', { type: 'button', class: 'acao-extra', title: 'Gera a APAC com QR Code de verificação e o carimbo/assinatura do profissional',
-          onclick: (e) => passo3GerarPdf(e.currentTarget, true) }, '🔳 ✍️ Gerar com QR Code e assinatura'),
+        h('button', { type: 'button', class: 'acao-extra',
+          title: dados.desktop ? 'Gera a APAC com o carimbo/assinatura do profissional' : 'Gera a APAC com QR Code de verificação e o carimbo/assinatura do profissional',
+          onclick: (e) => passo3GerarPdf(e.currentTarget, true) }, dados.desktop ? '✍️ Gerar com assinatura' : '🔳 ✍️ Gerar com QR Code e assinatura'),
         botao('roxo', '4', 'Salvar no Protocolo', 'Grava no Check-list / Protocolo', passo4Salvar),
         botao('vermelho', '5', 'Limpar formulário', 'Pronto para o próximo paciente', passo5Limpar),
         h('hr', { class: 'divisor' }),
@@ -789,6 +790,7 @@ function profissionalDoFormulario() {
 /**
  * completo = false → APAC simples (como sempre foi).
  * completo = true  → com QR Code de verificação + carimbo/assinatura do profissional (se cadastrada).
+ * No programa de computador (dados.desktop) não existe QR: "completo" = só com a assinatura.
  */
 async function passo3GerarPdf(botao, completo = false) {
   const faltando = camposObrigatoriosFaltando(form);
@@ -809,11 +811,16 @@ async function passo3GerarPdf(botao, completo = false) {
     const avisosExtras = [];
     let codigo = '';
     let comAssinatura = false;
+    const comQr = completo && !dados.desktop;
+    const semAssinaturaTexto = comQr ? 'A APAC saiu só com o QR Code.' : 'A APAC saiu sem assinatura.';
+    const ondeGuarda = dados.desktop ? 'neste computador' : 'na nuvem';
 
     if (completo) {
-      codigo = novoCodigoVerificacao();
-      const url = urlVerificacao(location.href, codigo);
-      opcoes.qr = { url, modulos: matrizQr(url) };
+      if (comQr) {
+        codigo = novoCodigoVerificacao();
+        const url = urlVerificacao(location.href, codigo);
+        opcoes.qr = { url, modulos: matrizQr(url) };
+      }
       const prof = profissionalDoFormulario();
       if (prof && prof.assinatura_path) {
         try {
@@ -821,11 +828,11 @@ async function passo3GerarPdf(botao, completo = false) {
           opcoes.assinatura = { bytes: new Uint8Array(await blob.arrayBuffer()), tipo: blob.type || 'image/png' };
           comAssinatura = true;
         } catch (e) {
-          avisosExtras.push('Não consegui buscar a assinatura de ' + prof.nome + ' (' + e.message + '). A APAC saiu só com o QR Code.');
+          avisosExtras.push('Não consegui buscar a assinatura de ' + prof.nome + ' (' + e.message + '). ' + semAssinaturaTexto);
         }
       } else {
         avisosExtras.push((prof ? prof.nome : (form.esf_profissional || 'O profissional solicitante')) +
-          ' não tem carimbo/assinatura cadastrados. A APAC saiu só com o QR Code. Para cadastrar: Cadastros ▸ Profissionais ▸ ✍️.');
+          ' não tem carimbo/assinatura cadastrados. ' + semAssinaturaTexto + ' Para cadastrar: Cadastros ▸ Profissionais ▸ ✍️.');
       }
     }
 
@@ -839,7 +846,7 @@ async function passo3GerarPdf(botao, completo = false) {
     try {
       // com QR: primeiro publica a cópia que o QR abre (se falhar, nada de entregar um QR que não funciona)
       let caminhoQr = null;
-      if (completo) {
+      if (comQr) {
         caminhoQr = u.id + '/' + codigo + '.pdf';
         await dados.enviarArquivo('verificacao', caminhoQr, bytes);
       }
@@ -855,26 +862,27 @@ async function passo3GerarPdf(botao, completo = false) {
         proc_codigo: soDigitos(form.proc_codigo), proc_nome: form.proc_nome || '', pdf_path: caminho,
         assinatura: await assinaturaFormulario(form)
       };
-      if (completo) Object.assign(linha, { verificacao: codigo, verificacao_path: caminhoQr, com_assinatura: comAssinatura });
+      if (completo) Object.assign(linha, comQr ? { verificacao: codigo, verificacao_path: caminhoQr, com_assinatura: comAssinatura } : { com_assinatura: comAssinatura });
       const reg = await dados.registrarApac(linha);
       form._apac_id = reg.id;
       guardado = true;
       salvarDepois();
     } catch (e) {
-      if (completo) {
+      if (comQr) {
         alerta('❌ Não consegui gerar com QR Code',
           'O QR Code precisa da cópia guardada na nuvem e ela não foi gravada (' + esc(e.message) + ').<br><br>' +
           'Tente de novo ou use o botão <b>③ Gerar APAC em PDF</b> (sem QR Code).');
         return;
       }
-      aviso = 'O PDF foi gerado, mas não consegui guardar uma cópia na nuvem (' + e.message + '). Imprima ou salve agora.';
+      aviso = 'O PDF foi gerado, mas não consegui guardar uma cópia ' + ondeGuarda + ' (' + e.message + '). Imprima ou salve agora.';
     }
 
     modal({
-      titulo: completo ? '✅ APAC gerada com QR Code' : '✅ APAC gerada',
+      titulo: comQr ? '✅ APAC gerada com QR Code' : (completo && comAssinatura ? '✅ APAC gerada com assinatura' : '✅ APAC gerada'),
       conteudo: h('div', { style: { textAlign: 'center' } },
         h('p', null, h('b', null, caminho.split('/').pop())),
-        completo ? h('p', { class: 'pequeno' }, '🔳 QR Code de verificação' + (comAssinatura ? ' · ✍️ com carimbo e assinatura' : '')) : null,
+        comQr ? h('p', { class: 'pequeno' }, '🔳 QR Code de verificação' + (comAssinatura ? ' · ✍️ com carimbo e assinatura' : '')) : null,
+        completo && !comQr && comAssinatura ? h('p', { class: 'pequeno' }, '✍️ com carimbo e assinatura') : null,
         ...avisosExtras.map((t) => h('div', { class: 'msg aviso', style: { textAlign: 'left' } }, t)),
         aviso ? h('div', { class: 'msg aviso' }, aviso) : h('p', { class: 'mudo pequeno' }, 'Uma cópia ficou guardada em Protocolo ▸ APACs geradas.')),
       botoes: [

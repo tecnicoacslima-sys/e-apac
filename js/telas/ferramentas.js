@@ -26,7 +26,9 @@ const CARTOES = {
   cartoes: () => cartaoCartoes(),
   'teste-ia': () => cartaoTesteIA(),
   sigtap: () => cartaoSigtap(),
-  importar: () => cartaoImportar()
+  importar: () => cartaoImportar(),
+  senha: () => cartaoSenha(),        // só no programa de computador
+  pasta: () => cartaoPastaDados()    // só no programa de computador
 };
 
 const ESTILO = `
@@ -294,10 +296,54 @@ function cartaoSigtap() {
   return h('section', { class: 'card' }, h('h2', null, '📥 Atualizar tabela SIGTAP (.zip)'),
     h('div', { class: 'card-conteudo' },
       h('p', { class: 'mudo pequeno', style: { marginTop: 0 } },
-        'Monta a tabela oficial a partir do .zip da Tabela Unificada do DATASUS. Vale para todas as unidades. Não usa IA.'),
+        'Monta a tabela oficial a partir do .zip da Tabela Unificada do DATASUS. ' +
+        (dados.desktop ? 'Vale para este computador; atualize a cada 60–90 dias.' : 'Vale para todas as unidades.') + ' Não usa IA.'),
       info,
       h('button', { type: 'button', class: 'btn principal', onclick: () => abrirAtualizarSigtap({ aoTerminar: carregar }) },
         '📥 Atualizar pelo .zip')));
+}
+
+// ---------------- 🔑 TROCAR A SENHA (só no computador) ----------------
+function cartaoSenha() {
+  const atual = h('input', { type: 'password', autocomplete: 'current-password' });
+  const nova = h('input', { type: 'password', autocomplete: 'new-password' });
+  const repete = h('input', { type: 'password', autocomplete: 'new-password' });
+  const status = h('div');
+  const botao = h('button', { type: 'button', class: 'btn principal' }, '🔑 Trocar a senha');
+  botao.addEventListener('click', () => comCarregando(botao, 'Trocando…', async () => {
+    status.innerHTML = '';
+    try {
+      if (nova.value !== repete.value) throw new Error('As duas senhas novas não são iguais.');
+      await dados.trocarSenha(atual.value, nova.value);
+      atual.value = nova.value = repete.value = '';
+      status.innerHTML = '<div class="msg ok">Senha trocada. Use a senha nova na próxima vez que abrir o programa.</div>';
+    } catch (e) {
+      status.innerHTML = '<div class="msg erro">' + esc(e.message) + '</div>';
+    }
+  }));
+  return h('section', { class: 'card' }, h('h2', null, '🔑 Trocar a senha da unidade'),
+    h('div', { class: 'card-conteudo' },
+      h('p', { class: 'mudo pequeno', style: { marginTop: 0 } }, 'A senha é da unidade: quem cobrir férias usa a mesma. Pelo menos 6 caracteres. O código de recuperação continua o mesmo.'),
+      h('div', { class: 'campo' }, h('label', null, 'Senha atual'), atual),
+      h('div', { class: 'campo' }, h('label', null, 'Senha nova'), nova),
+      h('div', { class: 'campo' }, h('label', null, 'Repita a senha nova'), repete),
+      botao, status));
+}
+
+// ---------------- 🗂️ PASTA DOS DADOS (só no computador) ----------------
+function cartaoPastaDados() {
+  const onde = h('code', { style: { display: 'block', padding: '8px', background: '#F4F7F5', borderRadius: '6px', overflowWrap: 'anywhere', margin: '6px 0 10px' } }, 'Carregando…');
+  dados.infoComputador().then((i) => { onde.textContent = i.pastaDados; }).catch((e) => { onde.textContent = e.message; });
+  return h('section', { class: 'card' }, h('h2', null, '🗂️ Pasta dos dados'),
+    h('div', { class: 'card-conteudo' },
+      h('p', { style: { marginTop: 0 } }, 'Tudo o que este programa guarda fica nesta pasta, só neste computador:'),
+      onde,
+      h('ul', { class: 'pequeno', style: { margin: '0 0 12px 18px', padding: 0 } },
+        h('li', null, h('b', null, 'apac.sqlite'), ' — o banco (pacientes, protocolo, APACs, conferências, cadastros, SIGTAP)'),
+        h('li', null, h('b', null, 'arquivos'), ' — os PDFs das APACs e dos relatórios, logo e assinaturas'),
+        h('li', null, h('b', null, 'copias'), ' — uma cópia do banco por dia (as 15 mais recentes), feita ao abrir o programa')),
+      h('div', { class: 'msg aviso pequeno' }, 'Para levar para outro computador ou guardar fora: feche o programa e copie a pasta inteira (pendrive, Drive…). Ela tem dados de pacientes: guarde com cuidado.'),
+      h('button', { type: 'button', class: 'btn principal', style: { marginTop: '10px' }, onclick: () => dados.abrirPastaDados() }, '📂 Abrir a pasta')));
 }
 
 // ---------------- 📥 IMPORTAR ----------------
