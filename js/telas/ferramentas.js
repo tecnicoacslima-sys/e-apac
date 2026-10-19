@@ -17,6 +17,7 @@ import { motivoCNSInvalido, validarCPF, soDigitos } from '../lib/validacao.js';
 import { atualizarSubtitulo, ferramentasVisiveis } from '../app.js';
 import { abrirAtualizarSigtap } from './atualizar-sigtap.js';
 import { rotuloCompetencia } from '../lib/sigtap-zip.js';
+import { listarTabelasRepo } from '../lib/sigtap-repo.js';
 import { montarPlanilhaCopia, nomeArquivoCopia } from '../lib/copia.js';
 
 const CARTOES = {
@@ -368,20 +369,28 @@ function cartaoModoHibrido() {
 // ---------------- 📥 ATUALIZAR SIGTAP (só admin) ----------------
 function cartaoSigtap() {
   const info = h('p', { class: 'pequeno', style: { marginTop: 0 } }, 'Carregando…');
+  const naInternet = h('p', { class: 'pequeno mudo', style: { marginTop: 0 } }, '🌐 Procurando a mais recente na internet…');
   const carregar = () => dados.infoSigtap().then((i) => {
     info.innerHTML = i.competencia
       ? 'Em uso: competência <b>' + esc(rotuloCompetencia(i.competencia)) + '</b> · ' + esc(fmtNum(i.total)) + ' procedimentos'
       : '⚠️ Nenhuma tabela SIGTAP carregada ainda.';
+    return listarTabelasRepo().then((repo) => {
+      const nova = repo.arquivos[0].competencia;
+      naInternet.className = 'pequeno';
+      naInternet.innerHTML = !i.competencia || nova > i.competencia
+        ? '🆕 Na internet já existe a competência <b>' + esc(rotuloCompetencia(nova)) + '</b>. Clique em Atualizar para baixar.'
+        : '✅ É a mais recente disponível na internet.';
+    }).catch(() => { naInternet.textContent = '🌐 Sem acesso à internet agora: dá para atualizar pelo .zip.'; });
   }).catch((e) => { info.textContent = e.message; });
   carregar();
-  return h('section', { class: 'card' }, h('h2', null, '📥 Atualizar tabela SIGTAP (.zip)'),
+  return h('section', { class: 'card' }, h('h2', null, '📥 Atualizar tabela SIGTAP'),
     h('div', { class: 'card-conteudo' },
       h('p', { class: 'mudo pequeno', style: { marginTop: 0 } },
-        'Monta a tabela oficial a partir do .zip da Tabela Unificada do DATASUS. ' +
+        'Monta a tabela oficial a partir do .zip da Tabela Unificada do DATASUS, baixado sozinho pela internet ou escolhido à mão. ' +
         (dados.desktop ? 'Vale para este computador; atualize a cada 60–90 dias.' : 'Vale para todas as unidades.') + ' Não usa IA.'),
-      info,
+      info, naInternet,
       h('button', { type: 'button', class: 'btn principal', onclick: () => abrirAtualizarSigtap({ aoTerminar: carregar }) },
-        '📥 Atualizar pelo .zip')));
+        '📥 Atualizar tabela')));
 }
 
 // ---------------- 🔑 TROCAR A SENHA (só no computador) ----------------

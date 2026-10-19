@@ -1,6 +1,6 @@
 {
- "versao": "20261019T0051",
- "gerado": "2026-10-19T00:51:00.000Z",
+ "versao": "20261019T1219",
+ "gerado": "2026-10-19T12:19:00.000Z",
  "arquivos": [
   "config.js",
   "css/app.css",
@@ -22,6 +22,7 @@
   "js/lib/pdf-texto.js",
   "js/lib/qr.js",
   "js/lib/relatorio-gmus.js",
+  "js/lib/sigtap-repo.js",
   "js/lib/sigtap-zip.js",
   "js/lib/sigtap.js",
   "js/lib/texto.js",

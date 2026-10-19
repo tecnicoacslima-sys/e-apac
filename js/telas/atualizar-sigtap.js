@@ -1,20 +1,24 @@
 /**
  * 📥 ATUALIZAR TABELA SIGTAP (.zip) — janela usada em Ferramentas e na tela SIGTAP.
- * Só o administrador vê (a tabela oficial vale para todas as unidades).
+ * No site, só o administrador vê (a tabela vale para todas as unidades);
+ * no programa de computador, a unidade atualiza a própria tabela.
  *
- * 1. escolhe o "TabelaUnificada_AAAAMM_v….zip" (sem descompactar);
+ * 0. 🌐 pela internet: busca o .zip mais recente no repositório RenatoKR/SIGTAP
+ *    (cópia diária dos arquivos oficiais do DATASUS) — ver lib/sigtap-repo.js;
+ * 1. ou escolhe à mão o "TabelaUnificada_AAAAMM_v….zip" (sem descompactar);
  * 2. o navegador abre o zip e monta a tabela (nada é gravado ainda);
  * 3. mostra o resumo: competência, novos, que saíram, Referência fora da tabela;
  * 4. "Gravar" manda para o banco; se der erro no meio, desfaz.
  * Não usa IA: não gasta tokens.
  */
 import * as dados from '../dados.js';
-import { h, modal, zonaArquivo, lerArquivoBuffer, toast } from '../ui.js';
+import { h, modal, zonaArquivo, lerArquivoBuffer, toast, comCarregando } from '../ui.js';
 import { esc, fmtNum } from '../lib/texto.js';
 import { lerTextosDoZip } from '../lib/unzip.js';
 import {
   SIGTAP_IMPORT, ARQUIVOS_DO_ZIP, montarLinhasSigtap, conferirTabelaNova, compararTabelas, rotuloCompetencia
 } from '../lib/sigtap-zip.js';
+import { SIGTAP_REPO, listarTabelasRepo, baixarTabelaRepo, lerNomeArquivo, mesesDeAtraso } from '../lib/sigtap-repo.js';
 
 const LOTE = 1000;
 
@@ -24,12 +28,74 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
   const status = h('div');
   let info = { competencia: '', total: 0 };
 
+  const internet = h('div', { class: 'card', style: { padding: '12px 14px', margin: '0 0 12px', boxShadow: 'none' } },
+    h('div', { class: 'carregando' }, h('span', { class: 'spinner' }), 'Procurando a tabela mais recente na internet…'));
+
   dados.infoSigtap().then((i) => {
     info = i;
     atual.innerHTML = i.competencia
       ? 'Tabela em uso agora: competência <b>' + esc(rotuloCompetencia(i.competencia)) + '</b> (' + esc(fmtNum(i.total)) + ' procedimentos)'
       : 'Nenhuma tabela SIGTAP carregada ainda.';
-  }).catch((e) => { atual.className = 'msg erro'; atual.textContent = e.message; });
+  }).catch((e) => { atual.className = 'msg erro'; atual.textContent = e.message; })
+    .finally(() => procurarNaInternet());
+
+  // ---------- 🌐 pela internet (repositório RenatoKR/SIGTAP) ----------
+  async function procurarNaInternet() {
+    let repo;
+    try {
+      repo = await listarTabelasRepo();
+    } catch (e) {
+      internet.innerHTML = '';
+      internet.append(
+        h('b', null, '🌐 Buscar pela internet'),
+        h('div', { class: 'msg aviso pequeno', style: { margin: '8px 0 0' } }, e.message));
+      return;
+    }
+    const maisNova = repo.arquivos[0];
+    const temNova = !info.competencia || maisNova.competencia > info.competencia;
+    const escolha = h('select', { style: { maxWidth: '200px' } },
+      ...repo.arquivos.map((a) => h('option', { value: a.nome }, rotuloCompetencia(a.competencia) + (a === maisNova ? ' (mais recente)' : ''))));
+    const baixar = h('button', { type: 'button', class: temNova ? 'btn principal' : 'btn' }, '⬇️ Baixar e conferir');
+    baixar.addEventListener('click', () => comCarregando(baixar, 'Baixando…', async () => {
+      status.innerHTML = '';
+      status.appendChild(h('div', { class: 'carregando' }, h('span', { class: 'spinner' }), 'Baixando ' + escolha.value + '…'));
+      try {
+        const buffer = await baixarTabelaRepo(escolha.value);
+        await prepararBuffer(escolha.value, buffer, true);
+      } catch (e) {
+        status.innerHTML = '';
+        status.appendChild(h('div', { class: 'msg erro' }, '❌ ' + e.message));
+      }
+    }));
+
+    const avisos = [];
+    const diasParado = repo.sincronizado ? (Date.now() - repo.sincronizado.getTime()) / 86400000 : null;
+    if (diasParado !== null && diasParado > SIGTAP_REPO.DIAS_SEM_SINCRONIZAR) {
+      avisos.push('O repositório não é atualizado há ' + Math.floor(diasParado) + ' dias. Pode ter parado: se souber de uma competência mais nova, use o .zip à mão.');
+    }
+    const atraso = mesesDeAtraso(maisNova.competencia);
+    if (atraso !== null && atraso >= 2) {
+      avisos.push('A competência mais recente no repositório é ' + rotuloCompetencia(maisNova.competencia) +
+        ', de ' + atraso + ' meses atrás. O DATASUS costuma publicar a do mês por volta do dia 15: confira se não há uma mais nova.');
+    }
+
+    internet.innerHTML = '';
+    internet.append(...[
+      h('b', null, '🌐 Buscar pela internet'),
+      h('div', { class: temNova ? 'msg ok' : 'msg info', style: { margin: '8px 0' } },
+        temNova
+          ? h('span', null, '🆕 Disponível: competência ', h('b', null, rotuloCompetencia(maisNova.competencia)),
+              info.competencia ? ' (mais nova que a em uso).' : '.')
+          : h('span', null, '✅ A tabela em uso já é a mais recente disponível (', h('b', null, rotuloCompetencia(maisNova.competencia)), ').')),
+      ...avisos.map((t) => h('div', { class: 'msg aviso pequeno', style: { margin: '0 0 8px' } }, '⚠️ ' + t)),
+      h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } }, escolha, baixar),
+      h('div', { class: 'pequeno mudo', style: { marginTop: '6px' } },
+        'Cópia diária dos arquivos oficiais do DATASUS no ',
+        h('a', { href: SIGTAP_REPO.PAGINA, target: '_blank', rel: 'noopener' }, 'repositório RenatoKR/SIGTAP'),
+        repo.sincronizado ? ' · última cópia em ' + repo.sincronizado.toLocaleDateString('pt-BR') : '',
+        '. O arquivo passa pela mesma conferência do .zip escolhido à mão.')
+    ].filter(Boolean));
+  }
 
   const zona = zonaArquivo({
     aceitar: '.zip,application/zip,application/x-zip-compressed',
@@ -42,7 +108,10 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
     largura: 640,
     conteudo: h('div', null,
       atual,
-      h('ol', { style: { margin: '0 0 12px 18px', padding: 0, lineHeight: '1.6' } },
+      internet,
+      h('b', null, '📂 Ou escolha o .zip à mão'),
+      h('span', { class: 'pequeno mudo' }, ' (sem internet, ou se a busca acima falhar)'),
+      h('ol', { style: { margin: '6px 0 12px 18px', padding: 0, lineHeight: '1.6' } },
         h('li', null, 'Baixe o arquivo ', h('b', null, 'TabelaUnificada_AAAAMM_v….zip'), ' da competência desejada: ',
           h('a', { href: SIGTAP_IMPORT.SITE_ESPELHO, target: '_blank', rel: 'noopener' }, '🌐 abrir o site para baixar'),
           h('span', { class: 'pequeno mudo' }, ' (ou o ',
@@ -61,9 +130,20 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
       status.appendChild(h('div', { class: 'msg erro' }, '❌ Escolha o arquivo .zip (sem descompactar).'));
       return;
     }
-    status.appendChild(h('div', { class: 'carregando' }, h('span', { class: 'spinner' }), 'Abrindo o .zip e montando a tabela…'));
     try {
-      const buffer = await lerArquivoBuffer(arquivo);
+      await prepararBuffer(arquivo.name, await lerArquivoBuffer(arquivo), false);
+    } catch (e) {
+      status.innerHTML = '';
+      status.appendChild(h('div', { class: 'msg erro' }, '❌ ' + e.message));
+    }
+  }
+
+  /** Abre o .zip (do computador ou baixado da internet), confere e mostra o resumo. */
+  async function prepararBuffer(nome, buffer, daInternet) {
+    status.innerHTML = '';
+    janela.definirBotoes([{ texto: 'Fechar' }]);
+    status.appendChild(h('div', { class: 'carregando' }, h('span', { class: 'spinner' }), 'Abrindo o .zip e montando a tabela…'));
+    {
       let textos;
       try {
         textos = await lerTextosDoZip(buffer, ARQUIVOS_DO_ZIP);
@@ -78,6 +158,12 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
         textos[SIGTAP_IMPORT.ARQ_HAB], textos[SIGTAP_IMPORT.LAY_HAB]);
       const motivo = conferirTabelaNova(r, info.competencia);
       if (motivo) throw new Error(motivo);
+      // baixado da internet: a competência de dentro do arquivo tem que bater com a do nome
+      const doNome = lerNomeArquivo(nome);
+      if (daInternet && doNome && doNome.competencia !== r.competencia) {
+        throw new Error('O arquivo ' + nome + ' diz ser da competência ' + rotuloCompetencia(doNome.competencia) +
+          ', mas por dentro é da ' + rotuloCompetencia(r.competencia) + '. Não gravei nada. Use o .zip à mão.');
+      }
 
       const mesma = r.competencia === info.competencia;
       const codigosAntes = info.competencia && !mesma ? await codigosDaCompetencia(info.competencia) : null;
@@ -85,9 +171,6 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
       try { referencia = await dados.listarReferencia(); } catch (e) { referencia = []; }
       const cmp = compararTabelas(r, codigosAntes, referencia);
       mostrarResumo(r, mesma, cmp);
-    } catch (e) {
-      status.innerHTML = '';
-      status.appendChild(h('div', { class: 'msg erro' }, '❌ ' + e.message));
     }
   }
 
