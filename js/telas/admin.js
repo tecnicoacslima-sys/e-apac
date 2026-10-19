@@ -77,7 +77,7 @@ async function abaUnidades(area) {
       h('button', { class: 'btn principal', onclick: () => novaUnidade(carregar) }, '➕ Nova unidade')),
     h('div', { class: 'tabela-rolagem' }, h('table', { class: 'tabela' },
       h('thead', null, h('tr', null, h('th', null, 'Unidade'), h('th', { class: 'centro' }, 'IA ligada'),
-        h('th', null, 'Limite mensal (tokens)'), h('th', { class: 'num' }, 'Usado no mês'), h('th', null, 'Planilha antiga'), h('th', null, ''))),
+        h('th', null, 'Limite mensal (tokens)'), h('th', { class: 'num' }, 'Usado no mês'), h('th', null, 'Código de IA'), h('th', null, ''))),
       corpo)),
     h('p', { class: 'mudo pequeno' }, 'Referência: uma Conferência de Espelhos com 4 documentos usa cerca de 14 mil tokens.'))));
   carregar();
