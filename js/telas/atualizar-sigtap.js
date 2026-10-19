@@ -31,13 +31,16 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
   const internet = h('div', { class: 'card', style: { padding: '12px 14px', margin: '0 0 12px', boxShadow: 'none' } },
     h('div', { class: 'carregando' }, h('span', { class: 'spinner' }), 'Procurando a tabela mais recente na internet…'));
 
-  dados.infoSigtap().then((i) => {
+  /** Mostra a tabela em uso e o que há na internet (de novo depois de gravar). */
+  const carregarTopo = () => dados.infoSigtap().then((i) => {
     info = i;
+    atual.className = 'msg info';
     atual.innerHTML = i.competencia
       ? 'Tabela em uso agora: competência <b>' + esc(rotuloCompetencia(i.competencia)) + '</b> (' + esc(fmtNum(i.total)) + ' procedimentos)'
       : 'Nenhuma tabela SIGTAP carregada ainda.';
   }).catch((e) => { atual.className = 'msg erro'; atual.textContent = e.message; })
     .finally(() => procurarNaInternet());
+  carregarTopo();
 
   // ---------- 🌐 pela internet (repositório RenatoKR/SIGTAP) ----------
   async function procurarNaInternet() {
@@ -246,6 +249,7 @@ export function abrirAtualizarSigtap({ aoTerminar } = {}) {
       ' procedimentos. O sistema já está usando esta competência.' + apagadas));
     janela.definirBotoes([{ texto: 'Fechar', classe: 'principal' }]);
     toast('Competência ' + rotuloCompetencia(r.competencia) + ' em uso.', '✅ SIGTAP atualizado');
+    carregarTopo();
     if (aoTerminar) aoTerminar();
   }
 }
