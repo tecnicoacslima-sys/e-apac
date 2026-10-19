@@ -34,10 +34,22 @@ export const SUB_FERRAMENTAS = [
   { chave: 'cartoes',  icone: '🪪', rotulo: 'Conferir Cartões SUS',     desc: 'Confere o CNS e o CPF de profissionais e pacientes.' },
   { chave: 'teste-ia', icone: '🔌', rotulo: 'Acesso à IA',              desc: 'Confere se a IA está respondendo.' },
   { chave: 'sigtap',   icone: '📦', rotulo: 'Atualizar tabela SIGTAP',  desc: 'Monta a tabela oficial pelo .zip do DATASUS.', soAdmin: true },
-  { chave: 'importar', icone: '📥', rotulo: 'Importar planilha antiga', desc: 'Traz os dados da planilha GERADORA (.xlsx).' }
+  { chave: 'importar', icone: '📥', rotulo: 'Importar planilha antiga', desc: 'Traz os dados da planilha GERADORA (.xlsx).' },
+  // só no programa de computador
+  { chave: 'senha',    icone: '🔑', rotulo: 'Trocar a senha',           desc: 'Troca a senha da unidade neste computador.', soComputador: true },
+  { chave: 'pasta',    icone: '🗂️', rotulo: 'Pasta dos dados',          desc: 'Onde ficam o banco, os PDFs e as cópias.', soComputador: true }
 ];
+/**
+ * Quem vê cada ferramenta.
+ * No programa de computador não existe administrador: lá, a unidade é a dona da
+ * própria tabela SIGTAP, então "Atualizar tabela SIGTAP" aparece para ela.
+ */
 export function ferramentasVisiveis() {
-  return SUB_FERRAMENTAS.filter((f) => !f.soAdmin || dados.souAdmin());
+  return SUB_FERRAMENTAS.filter((f) => {
+    if (f.soComputador && !dados.desktop) return false;
+    if (f.soAdmin && !(dados.souAdmin() || dados.desktop)) return false;
+    return true;
+  });
 }
 
 const app = document.getElementById('app');

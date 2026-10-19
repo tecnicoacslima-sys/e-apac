@@ -1,6 +1,6 @@
 /**
  * ADMIN (só você) — antes: planilha PAINEL_CONSUMO_IA.
- *   Unidades (ativo, limite, código para planilha antiga)
+ *   Unidades (ativo, limite, código de acesso à IA: programa de computador e planilha antiga)
  *   Usuários (convidar, ligar à unidade, papel)
  *   Consumo por mês e unidade + preços / margem / câmbio
  * 🧾 Fatura de consumo de IA em PDF: botão em cada linha de Consumo e preços.
@@ -62,7 +62,7 @@ async function abaUnidades(area) {
           h('td', { class: 'num' }, fmtNum(usado)),
           h('td', null, u.codigo_hash ? '✔ tem código' : h('span', { class: 'mudo' }, '—')),
           h('td', { class: 'direita', style: { whiteSpace: 'nowrap' } },
-            h('button', { class: 'btn pequeno', onclick: () => gerarCodigo(u) }, '🔑 Código p/ planilha antiga'), ' ',
+            h('button', { class: 'btn pequeno', onclick: () => gerarCodigo(u) }, '🔑 Código de acesso à IA'), ' ',
             u.id === dados.sessao.unidade.id ? null
               : h('button', { class: 'btn pequeno perigo', title: 'Apaga pacientes, protocolo, APACs e conferências desta unidade',
                   onclick: () => limparUnidade(u, carregar) }, '🧹 Limpar dados'))));
@@ -170,8 +170,9 @@ function limparUnidade(u, aoTerminar) {
 }
 
 async function gerarCodigo(u) {
-  const ok = await confirmar('🔑 Código para planilha antiga',
-    'Gerar um código novo para <b>' + esc(u.nome) + '</b>?<br><br>Ele serve só para planilhas antigas que ainda chamam o servidor de IA. ' +
+  const ok = await confirmar('🔑 Código de acesso à IA',
+    'Gerar um código novo para <b>' + esc(u.nome) + '</b>?<br><br>Ele liga a IA no <b>programa de computador</b> ' +
+    '(Ferramentas ▸ Acesso à IA) e nas planilhas antigas. O consumo aparece no nome desta unidade. ' +
     (u.codigo_hash ? '<b>O código anterior para de valer na hora.</b>' : ''), { sim: 'Gerar código' });
   if (!ok) return;
   try {
@@ -182,7 +183,8 @@ async function gerarCodigo(u) {
       titulo: '🔑 ' + u.nome,
       conteudo: h('div', null,
         h('div', { class: 'campo' }, h('label', null, 'Código de acesso'), campo(codigo)),
-        h('div', { class: 'campo' }, h('label', null, 'Endereço do servidor (na planilha, no lugar do /exec)'), campo(url)),
+        h('p', { class: 'pequeno', style: { marginTop: 0 } }, '💻 ', h('b', null, 'Programa de computador:'), ' cole o código em Ferramentas ▸ Acesso à IA.'),
+        h('div', { class: 'campo' }, h('label', null, 'Endereço do servidor (só para planilha antiga, no lugar do /exec)'), campo(url)),
         h('div', { class: 'msg aviso' }, '⚠️ Copie e guarde o código agora. Ele não é gravado e não aparece de novo.')),
       botoes: [{ texto: 'Fechar', classe: 'principal' }]
     });

@@ -7,10 +7,11 @@
  * Ferramentas:
  *   📊 Consumo da IA · 🔌 Testar acesso à IA · 🪪 Conferir Cartões SUS
  *   ✏️ Dados da unidade (+ brasão) · 📥 Importar planilha antiga
- *   📎 Juntar PDFs · 💾 Cópia de segurança · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador
+ *   📎 Juntar PDFs · 💾 Cópia de segurança · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador (e o computador)
+ *   Só no programa de computador: 🔑 Trocar a senha · 🗂️ Pasta dos dados · modo híbrido (dentro de 🔌 Acesso à IA)
  */
 import * as dados from '../dados.js';
-import { h, toast, comCarregando, listaHtml, alerta } from '../ui.js';
+import { h, toast, comCarregando, listaHtml, alerta, confirmar } from '../ui.js';
 import { esc, fmtNum, rotuloMes, partesData } from '../lib/texto.js';
 import { motivoCNSInvalido, validarCPF, soDigitos } from '../lib/validacao.js';
 import { atualizarSubtitulo, ferramentasVisiveis } from '../app.js';
@@ -266,6 +267,7 @@ function cartaoCartoes() {
 
 // ---------------- 🔌 TESTAR IA ----------------
 function cartaoTesteIA() {
+  if (dados.desktop) return cartaoModoHibrido();
   const saida = h('div');
   const botao = h('button', { class: 'btn' }, '🔌 Testar acesso à IA');
   botao.addEventListener('click', () => comCarregando(botao, 'Testando…', async () => {
@@ -282,6 +284,85 @@ function cartaoTesteIA() {
     h('div', { class: 'card-conteudo' },
       h('p', { class: 'mudo pequeno', style: { marginTop: 0 } }, 'Faz uma chamada mínima (gasta pouquíssimos tokens) para conferir se a IA responde.'),
       botao, saida));
+}
+
+// ---------------- 🔌 MODO HÍBRIDO (só no computador) ----------------
+/**
+ * O programa nasce offline. Com o código APAC-… (gerado no Admin do site para a
+ * unidade), liga a IA: os botões de IA passam a mandar o PDF, pela internet, ao
+ * servidor do APAC digital. Sem código ou sem internet, tudo segue digitado.
+ */
+function cartaoModoHibrido() {
+  const corpo = h('div', { class: 'card-conteudo' }, h('div', { class: 'carregando' }, h('span', { class: 'spinner' }), 'Carregando…'));
+  const aviso = () => h('div', { class: 'msg aviso pequeno' },
+    h('b', null, 'Privacidade (LGPD): '),
+    'com o modo híbrido ligado, ao clicar num botão de IA (ler laudo, espelho CELK, relatório G-MUS ou Conferência), ' +
+    'o arquivo escolhido é enviado pela internet ao servidor do APAC digital, que pede a leitura ao serviço de IA. ' +
+    'Nada é enviado sem esse clique. O servidor registra só a quantidade usada, nunca o conteúdo. ' +
+    'O resto do programa (pacientes, protocolo, APACs) continua só neste computador.');
+
+  const desenhar = async () => {
+    let e;
+    try { e = await dados.estadoIA(); } catch (erro) { corpo.innerHTML = ''; corpo.appendChild(h('div', { class: 'msg erro' }, erro.message)); return; }
+    corpo.innerHTML = '';
+
+    if (e.ligado) {
+      const saida = h('div');
+      const testar = h('button', { type: 'button', class: 'btn' }, '🔌 Testar acesso');
+      testar.addEventListener('click', () => comCarregando(testar, 'Testando…', async () => {
+        try {
+          const r = await dados.chamarIA({ funcao: 'TESTE', system: 'Responda apenas com a palavra OK.',
+            content: [{ type: 'text', text: 'Teste de conexão.' }], maxTokens: 10 });
+          saida.innerHTML = '<div class="msg ok">✅ A IA está respondendo. Modelo: ' + esc(r.modelo) + '.</div>';
+        } catch (erro) {
+          saida.innerHTML = '<div class="msg erro">❌ ' + esc(erro.message) + '</div>';
+        }
+      }));
+      const desligar = h('button', { type: 'button', class: 'btn' }, '⚪ Desligar o modo híbrido');
+      desligar.addEventListener('click', async () => {
+        const ok = await confirmar('Desligar o modo híbrido?',
+          'Os botões de IA param de funcionar neste computador e tudo volta a ser digitado. ' +
+          'Para ligar de novo, será preciso colar o código outra vez.', { sim: 'Desligar' });
+        if (!ok) return;
+        try { await dados.desativarIA(); toast('A IA foi desligada neste computador.', '⚪ Modo offline'); desenhar(); }
+        catch (erro) { toast(erro.message, '❌', 'erro'); }
+      });
+      corpo.append(
+        h('div', { class: 'msg ok' }, '✅ ', h('b', null, 'Modo híbrido ligado.'), ' Código terminando em ', h('code', null, '…' + e.final), '.'),
+        h('p', { class: 'mudo pequeno' }, 'Precisa de internet só na hora de usar um botão de IA. Sem internet, preencha digitando, como no modo offline.'),
+        aviso(),
+        h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', margin: '12px 0 4px' } }, testar, desligar),
+        saida);
+      return;
+    }
+
+    const campo = h('input', { placeholder: 'APAC-…', autocomplete: 'off', spellcheck: false,
+      style: { fontFamily: 'monospace', letterSpacing: '.5px' } });
+    const status = h('div');
+    const ligar = h('button', { type: 'button', class: 'btn principal' }, '🔌 Ligar o modo híbrido');
+    ligar.addEventListener('click', () => comCarregando(ligar, 'Conferindo o código…', async () => {
+      status.innerHTML = '';
+      try {
+        await dados.ativarIA(campo.value);
+        toast('A IA está ligada neste computador.', '✅ Modo híbrido');
+        desenhar();
+      } catch (erro) {
+        status.innerHTML = '<div class="msg erro">❌ ' + esc(erro.message) + '</div>';
+      }
+    }));
+    corpo.append(...[
+      h('div', { class: 'msg info' }, '⚪ ', h('b', null, 'Modo offline.'), ' A IA está desligada neste computador; tudo funciona digitando.'),
+      e.precisaColar ? h('div', { class: 'msg aviso pequeno' },
+        'Havia um código guardado, mas ele não vale neste computador (a pasta dos dados veio de outro computador?). Cole o código de novo.') : null,
+      h('p', { class: 'pequeno' }, 'Para usar os botões de IA (ler laudo, espelho CELK, G-MUS e Conferência), cole o código de acesso da unidade. ' +
+        'Peça o código ao responsável pelo APAC digital. O programa confere o código na hora, por isso precisa de internet neste momento.'),
+      aviso(),
+      h('div', { class: 'campo', style: { marginTop: '12px' } }, h('label', null, 'Código de acesso à IA'), campo),
+      ligar, status].filter(Boolean));
+  };
+
+  desenhar();
+  return h('section', { class: 'card' }, h('h2', null, '🔌 Acesso à IA (modo híbrido)'), corpo);
 }
 
 // ---------------- 📥 ATUALIZAR SIGTAP (só admin) ----------------

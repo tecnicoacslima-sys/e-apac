@@ -63,7 +63,7 @@ export async function montar(area) {
     h('div', { class: 'titulo-tela' },
       h('div', null, h('h1', null, '🔍 Procedimentos SIGTAP'),
         h('p', null, 'Busque pelo código ou por palavras do nome (sem se preocupar com acento).')),
-      dados.souAdmin() ? h('button', { type: 'button', class: 'btn', onclick: async () => {
+      (dados.souAdmin() || dados.desktop) ? h('button', { type: 'button', class: 'btn', onclick: async () => {
         const { abrirAtualizarSigtap } = await import('./atualizar-sigtap.js');
         abrirAtualizarSigtap({ aoTerminar: () => { area.innerHTML = ''; montar(area); } });
       } }, '📥 Atualizar tabela (.zip)') : null),
