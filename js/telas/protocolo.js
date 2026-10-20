@@ -309,20 +309,41 @@ function exportarCsv() {
 // APACs GERADAS
 // ============================================================
 async function montarApacs(area) {
-  const corpoA = h('tbody', null, h('tr', null, h('td', { colspan: 4 }, h('div', { class: 'carregando' }, h('span', { class: 'spinner' }), 'Carregando…'))));
+  const corpoA = h('tbody');
+  const texto = h('input', { type: 'search', placeholder: 'Paciente, CNS, procedimento ou código' });
+  const contadorA = h('span', { class: 'mudo pequeno' });
+  const aviso = h('p', { class: 'mudo pequeno', style: { marginTop: 0 } });
+
+  const carregar = async () => {
+    const t = texto.value.trim();
+    aviso.textContent = (t ? 'APACs geradas que combinam com "' + t + '" (até 100, das mais novas para as mais antigas).' : 'As 100 últimas APACs geradas pelo botão ③.') +
+      ' 🔳 = com QR Code. Uma APAC gerada com erro pode ser cancelada: o QR Code dela passa a mostrar "cancelada".';
+    corpoA.innerHTML = '<tr><td colspan="4"><div class="carregando"><span class="spinner"></span>Carregando…</div></td></tr>';
+    contadorA.textContent = '';
+    try {
+      const lista = await dados.listarApacs(100, t);
+      corpoA.innerHTML = '';
+      if (!lista.length) corpoA.innerHTML = '<tr><td colspan="4" class="vazio-tabela">' + (t ? 'Nenhuma APAC encontrada para essa busca.' : 'Nenhuma APAC gerada ainda.') + '</td></tr>';
+      lista.forEach((a) => corpoA.appendChild(linhaApac(a)));
+      contadorA.textContent = lista.length + ' APAC(s)';
+    } catch (e) {
+      corpoA.innerHTML = '<tr><td colspan="4"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
+    }
+  };
+  texto.addEventListener('keydown', (e) => { if (e.key === 'Enter') carregar(); });
+  // o "x" da caixa de busca limpa e volta a mostrar as últimas 100
+  texto.addEventListener('search', () => { if (!texto.value) carregar(); });
+
   area.append(h('div', { class: 'card' }, h('div', { class: 'card-conteudo' },
-    h('p', { class: 'mudo pequeno', style: { marginTop: 0 } }, 'As 100 últimas APACs geradas pelo botão ③. 🔳 = com QR Code. Uma APAC gerada com erro pode ser cancelada: o QR Code dela passa a mostrar "cancelada".'),
+    h('div', { class: 'filtros' },
+      h('div', { class: 'campo', style: { flex: '1', minWidth: '200px' } }, h('label', null, 'Procurar'), texto),
+      h('button', { class: 'btn', onclick: () => carregar() }, '🔎 Filtrar'),
+      contadorA),
+    aviso,
     h('div', { class: 'tabela-rolagem' }, h('table', { class: 'tabela' },
       h('thead', null, h('tr', null, h('th', null, 'Gerada em'), h('th', null, 'Paciente'), h('th', null, 'Procedimento'), h('th', null, ''))),
       corpoA)))));
-  try {
-    const lista = await dados.listarApacs(100);
-    corpoA.innerHTML = '';
-    if (!lista.length) corpoA.innerHTML = '<tr><td colspan="4" class="vazio-tabela">Nenhuma APAC gerada ainda.</td></tr>';
-    lista.forEach((a) => corpoA.appendChild(linhaApac(a)));
-  } catch (e) {
-    corpoA.innerHTML = '<tr><td colspan="4"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
-  }
+  carregar();
 }
 
 function linhaApac(a) {
