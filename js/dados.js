@@ -222,10 +222,12 @@ export async function cancelarApac(id, motivo) {
   if (r && r.verificacao_path) { try { await sb.storage.from('verificacao').remove([r.verificacao_path]); } catch (e) { /* tudo bem */ } }
   return r;
 }
-export async function listarApacs(limite = 100) {
-  return ok(await sb.from('apacs')
-    .select('*')
-    .order('criado_em', { ascending: false }).limit(limite));
+/** As últimas APACs geradas; texto = parte do nome, CNS, código ou nome do procedimento. */
+export async function listarApacs(limite = 100, texto = '') {
+  let q = sb.from('apacs').select('*');
+  const t = String(texto || '').trim().replace(/[%,()*]/g, ' ').trim();
+  if (t) q = q.or('paciente_nome.ilike.*' + t + '*,paciente_cns.ilike.*' + t + '*,proc_codigo.ilike.*' + t + '*,proc_nome.ilike.*' + t + '*');
+  return ok(await q.order('criado_em', { ascending: false }).limit(limite)) || [];
 }
 
 // ---------------- CONFERÊNCIAS ----------------
