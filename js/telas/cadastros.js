@@ -10,7 +10,7 @@ import { motivoDocProfissional, soDigitos } from '../lib/validacao.js';
 const TABELAS = {
   profissionais: {
     titulo: '👨‍⚕️ Profissionais (médicos)',
-    dica: 'O Nº é o que se digita no campo PROFISSIONAL SOLICITANTE. O documento é o Cartão SUS (15 dígitos) ou o CPF (11).',
+    dica: 'O Nº é o que se digita no campo PROFISSIONAL SOLICITANTE. O documento é o Cartão SUS (15 dígitos) ou o CPF (11). ⭐ = vem escolhido em toda APAC nova.',
     carregar: dados.listarProfissionais,
     colunas: [
       { k: 'numero', rot: 'Nº', larg: '60px', num: true },
@@ -26,7 +26,7 @@ const TABELAS = {
   },
   estabelecimentos: {
     titulo: '🏥 Estabelecimentos (CNES)',
-    dica: 'CNES com 7 dígitos. O nome aparece sozinho no formulário ao digitar o CNES.',
+    dica: 'CNES com 7 dígitos. O nome aparece sozinho no formulário ao digitar o CNES. ⭐ = vem escolhido em toda APAC nova.',
     carregar: dados.listarEstabelecimentos,
     colunas: [
       { k: 'cnes', rot: 'CNES', larg: '110px', digitos: 7 },
@@ -116,8 +116,23 @@ async function montarTabela(area, chave) {
       });
       tr.appendChild(h('td', null, inp));
     });
+    const podePadrao = (chave === 'profissionais' || chave === 'estabelecimentos') && l.id && !dados.desktop;
     tr.appendChild(h('td', { style: { whiteSpace: 'nowrap' } },
       problema ? h('span', { title: problema }, '⚠️ ') : null,
+      podePadrao ? h('button', {
+        class: 'btn pequeno' + (l.padrao ? ' assinado' : ''),
+        title: l.padrao ? 'Padrão da unidade: vem escolhido em toda APAC nova (clique para tirar)' : 'Tornar padrão: vem escolhido em toda APAC nova',
+        onclick: async () => {
+          try {
+            await dados.definirPadrao(chave, l.padrao ? null : l.id);
+            const virou = !l.padrao;
+            lista.forEach((x) => { x.padrao = false; });
+            l.padrao = virou;
+            desenhar();
+            toast(virou ? l.nome + ' agora vem escolhido em toda APAC nova.' : 'A unidade ficou sem padrão.', '⭐ Padrão', 'ok', 4);
+          } catch (e) { toast(e.message, '❌ Erro', 'erro'); }
+        }
+      }, l.padrao ? '⭐' : '☆') : null, podePadrao ? ' ' : null,
       chave === 'profissionais' && l.id ? h('button', {
         class: 'btn pequeno' + (l.assinatura_path ? ' assinado' : ''),
         title: l.assinatura_path ? 'Carimbo e assinatura cadastrados (clique para ver ou trocar)' : 'Cadastrar carimbo e assinatura',

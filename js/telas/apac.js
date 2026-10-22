@@ -9,7 +9,7 @@ import { h, toast, modal, confirmar, alerta, listaHtml, comCarregando, zonaArqui
 import { SECOES, CHAVES, formularioVazio, camposObrigatoriosFaltando, assinaturaFormulario,
          aplicarPaciente, aplicarSugestao, nomeArquivoApac } from '../lib/formulario.js';
 import { soDigitos, motivoCNSInvalido, motivoDocProfissional } from '../lib/validacao.js';
-import { esc, mascararData, brParaISO, partesData, codigoSigtap10 } from '../lib/texto.js';
+import { esc, mascararData, brParaISO, partesData, codigoSigtap10, hojeBR } from '../lib/texto.js';
 import { buscarCep } from '../lib/endereco.js';
 import { extrairTextoPdf } from '../lib/pdf-texto.js';
 import { interpretarTextoEspelho, leituraSuficiente, nomeValido, camposFaltantes,
@@ -28,6 +28,7 @@ let cadastros = { estabelecimentos: [], profissionais: [] };
 let referenciaCache = null;
 let painelResumo = null;
 let salvarDepois = null;
+let escolhas = {};             // 'estabelecimentos' | 'profissionais' → { select, botao }
 
 // ============================================================
 // MONTAGEM
@@ -43,6 +44,7 @@ export async function montar(area) {
   cadastros = { estabelecimentos: est, profissionais: prof };
   form = Object.assign(formularioVazio(), rascunho || {});
   form.data_recebimento = formularioVazio().data_recebimento;   // sempre hoje (era =TODAY())
+  aplicarEscolhaInicial(form);
   referenciaCache = null;
 
   salvarDepois = atrasar(() => {
@@ -82,6 +84,9 @@ function montarFormulario() {
         });
       }
     } else {
+      const primeira = secao.linhas[0] && secao.linhas[0][0] && secao.linhas[0][0].chave;
+      if (primeira === 'cnes_solicitante') grade.appendChild(montarEscolha('estabelecimentos'));
+      if (primeira === 'esf_profissional') grade.appendChild(montarEscolha('profissionais'));
       secao.linhas.forEach((linha) => linha.forEach((c) => grade.appendChild(montarCampo(c))));
     }
     coluna.appendChild(h('section', { class: 'card' },
@@ -161,6 +166,164 @@ function atualizarListaProfissionais() {
   if (!dl) return;
   dl.innerHTML = '';
   cadastros.profissionais.forEach((p) => dl.appendChild(h('option', { value: p.nome }, 'Nº ' + p.numero)));
+  atualizarEscolhas();
+}
+
+// ============================================================
+// LISTAS DE ESCOLHA (estabelecimento e profissional) + PADRÃO + MEMÓRIA DO DIA
+//  • ⭐ padrão da unidade: vem escolhido em toda APAC nova.
+//  • Memória do dia: se você trocar (ex.: várias APACs do CEM seguidas),
+//    a troca continua nas próximas APACs até você mudar de volta.
+//    No dia seguinte, volta o ⭐ padrão.
+// ============================================================
+const OUTRO = 'outro';
+const tipoDoc = (doc) => (soDigitos(doc).length === 11 ? 'CPF' : 'CNS');
+const cnes7 = (v) => { const d = soDigitos(v); return d ? d.padStart(7, '0') : ''; };
+
+function chaveMemoria() {
+  const u = dados.sessao && dados.sessao.unidade;
+  return 'apac-ultima-escolha:' + ((u && u.id) || 'local');
+}
+function lerMemoria() {
+  try { return JSON.parse(localStorage.getItem(chaveMemoria()) || 'null'); } catch (e) { return null; }
+}
+/** Guarda o estabelecimento e o profissional que estão no formulário agora (só o que estiver completo). */
+function lembrarEscolha() {
+  const m = lerMemoria() || {};
+  const hoje = hojeBR();
+  const novo = { estab: m.estab && m.estab.dia === hoje ? m.estab : null, prof: m.prof && m.prof.dia === hoje ? m.prof : null };
+  const cnes = cnes7(form.cnes_solicitante), nomeEst = String(form.estab_solicitante || '').trim();
+  if (/^\d{7}$/.test(cnes) && nomeEst) novo.estab = { dia: hoje, cnes, nome: nomeEst };
+  const prof = String(form.esf_profissional || '').trim(), doc = soDigitos(form.esf_doc_numero);
+  if (prof && doc) novo.prof = { dia: hoje, nome: prof, tipo: form.esf_doc_tipo || tipoDoc(doc), doc };
+  try { localStorage.setItem(chaveMemoria(), JSON.stringify(novo)); } catch (e) { /* sem memória neste navegador */ }
+}
+
+/** Preenche estabelecimento e profissional vazios: primeiro a escolha de hoje, senão o ⭐ padrão. */
+function aplicarEscolhaInicial(f) {
+  const m = lerMemoria() || {};
+  const hoje = hojeBR();
+  if (!soDigitos(f.cnes_solicitante) && !String(f.estab_solicitante || '').trim()) {
+    const e = (m.estab && m.estab.dia === hoje) ? m.estab : cadastros.estabelecimentos.find((x) => x.padrao);
+    if (e) { f.cnes_solicitante = e.cnes; f.estab_solicitante = e.nome; }
+  }
+  if (!String(f.esf_profissional || '').trim()) {
+    const ontem = !(m.prof && m.prof.dia === hoje);
+    const p = ontem ? cadastros.profissionais.find((x) => x.padrao) : m.prof;
+    if (p) {
+      const doc = ontem ? p.documento : p.doc;
+      f.esf_profissional = p.nome;
+      f.esf_doc_tipo = ontem ? tipoDoc(doc) : (p.tipo || tipoDoc(doc));
+      f.esf_doc_numero = doc || '';
+    }
+  }
+}
+
+function montarEscolha(tabela) {
+  const ehEst = tabela === 'estabelecimentos';
+  const select = h('select', { id: 'escolha-' + tabela });
+  select.addEventListener('change', () => aoEscolher(tabela, select.value));
+  const botao = dados.desktop ? null : h('button', {
+    type: 'button', class: 'btn pequeno',
+    title: ehEst ? 'Fazer deste estabelecimento o padrão de toda APAC nova' : 'Fazer deste profissional o padrão de toda APAC nova',
+    onclick: () => tornarPadrao(tabela)
+  }, '⭐ Tornar padrão');
+  escolhas[tabela] = { select, botao };
+  return h('div', { class: 'campo', style: { gridColumn: '1 / span 12' } },
+    h('label', { for: select.id }, ehEst ? '📋 Escolher da lista (preenche CNES e nome)' : '📋 Escolher da lista (preenche nome e documento)'),
+    h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+      h('div', { style: { flex: '1', minWidth: '0' } }, select), botao));
+}
+
+/** Monta as opções das duas listas (⭐ padrão primeiro) e marca o que está no formulário. */
+function atualizarEscolhas() {
+  Object.keys(escolhas).forEach((tabela) => {
+    const { select } = escolhas[tabela];
+    const ehEst = tabela === 'estabelecimentos';
+    const lista = [...(cadastros[tabela] || [])].sort((a, b) =>
+      (b.padrao ? 1 : 0) - (a.padrao ? 1 : 0) || String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+    select.innerHTML = '';
+    select.appendChild(h('option', { value: '' }, '— escolha —'));
+    lista.forEach((x) => select.appendChild(h('option', { value: String(x.id) },
+      (x.padrao ? '⭐ ' : '') + x.nome + (ehEst ? ' · CNES ' + x.cnes : ' · Nº ' + x.numero))));
+    select.appendChild(h('option', { value: OUTRO }, ehEst ? '✏️ Outro: digitar CNES e nome nos campos abaixo' : '✏️ Outro: digitar nome e Cartão SUS nos campos abaixo'));
+  });
+  sincronizarEscolhas();
+}
+
+/** A lista mostra o que está escrito nos campos (ou "Outro", se não estiver na lista). */
+function sincronizarEscolhas() {
+  const est = escolhas.estabelecimentos;
+  if (est) {
+    const cnes = cnes7(form.cnes_solicitante);
+    const nome = String(form.estab_solicitante || '').trim().toUpperCase();
+    const achou = cnes && cadastros.estabelecimentos.find((e) => e.cnes === cnes && (!nome || String(e.nome).toUpperCase() === nome)) ||
+                  (cnes && cadastros.estabelecimentos.find((e) => e.cnes === cnes));
+    est.select.value = achou ? String(achou.id) : (cnes || nome ? OUTRO : '');
+  }
+  const prof = escolhas.profissionais;
+  if (prof) {
+    const p = profissionalDoFormulario();
+    prof.select.value = p ? String(p.id) : (String(form.esf_profissional || '').trim() ? OUTRO : '');
+  }
+}
+
+function aoEscolher(tabela, valor) {
+  if (tabela === 'estabelecimentos') {
+    if (valor === OUTRO) { gravar('cnes_solicitante', ''); gravar('estab_solicitante', ''); focar('cnes_solicitante'); }
+    else {
+      const e = cadastros.estabelecimentos.find((x) => String(x.id) === valor);
+      if (!e) return;
+      gravar('cnes_solicitante', e.cnes);
+      gravar('estab_solicitante', e.nome);
+    }
+  } else {
+    if (valor === OUTRO) { gravar('esf_profissional', ''); gravar('esf_doc_numero', ''); gravar('esf_doc_tipo', 'CNS'); focar('esf_profissional'); }
+    else {
+      const p = cadastros.profissionais.find((x) => String(x.id) === valor);
+      if (!p) return;
+      gravar('esf_profissional', p.nome);
+      gravar('esf_doc_tipo', tipoDoc(p.documento));
+      gravar('esf_doc_numero', p.documento);
+    }
+  }
+  if (valor !== OUTRO) lembrarEscolha();
+  atualizarResumo();
+  salvarDepois();
+}
+
+async function tornarPadrao(tabela) {
+  const { select, botao } = escolhas[tabela];
+  const item = cadastros[tabela].find((x) => String(x.id) === select.value);
+  if (!item) {
+    toast('Escolha primeiro um item da lista (se for novo, salve no Protocolo ou cadastre em Cadastros).', 'Atenção', 'aviso', 6);
+    return;
+  }
+  try {
+    await comCarregando(botao, 'Salvando…', () => dados.definirPadrao(tabela, item.id));
+    cadastros[tabela].forEach((x) => { x.padrao = x === item; });
+    atualizarEscolhas();
+    toast(item.nome + ' agora vem escolhido em toda APAC nova.', '⭐ Padrão da unidade', 'ok', 5);
+  } catch (e) {
+    toast(e.message, '❌ Erro', 'erro');
+  }
+}
+
+/** CNES novo digitado à mão (CNES + nome) → já entra na lista para a próxima vez. */
+async function aprenderEstabelecimento() {
+  const cnes = cnes7(form.cnes_solicitante);
+  const nome = String(form.estab_solicitante || '').trim().toUpperCase();
+  if (!/^\d{7}$/.test(cnes) || /^0+$/.test(cnes) || !nome) return;
+  if (cadastros.estabelecimentos.some((e) => e.cnes === cnes)) return;
+  gravar('estab_solicitante', nome);
+  try {
+    await dados.salvarCadastro('estabelecimentos', { cnes, nome });
+    cadastros.estabelecimentos = await dados.listarEstabelecimentos();
+    atualizarEscolhas();
+    toast(nome + ' (CNES ' + cnes + ') entrou na lista.', '🏢 Estabelecimento salvo', 'ok', 4);
+  } catch (e) {
+    console.warn('Não salvou o estabelecimento:', e.message);
+  }
 }
 
 function gravar(chave, valor) {
@@ -181,6 +344,11 @@ function aoMudarCampo(chave, valor) {
   else if (chave === 'esf_doc_numero') aoEditarDocProfissional(v);
   else if (chave === 'cns_paciente') aoEditarCnsPaciente(v);
   else if (chave === 'cep') aoEditarCep(v);
+  else if (chave === 'estab_solicitante') aprenderEstabelecimento();
+  if (['cnes_solicitante', 'estab_solicitante', 'esf_profissional', 'esf_doc_tipo', 'esf_doc_numero'].includes(chave)) {
+    lembrarEscolha();
+    sincronizarEscolhas();
+  }
 }
 
 // 1. CNES → nome da UBS
@@ -257,6 +425,7 @@ async function aoEditarDocProfissional(valor) {
     if (novoNum) {
       cadastros.profissionais = await dados.listarProfissionais();
       atualizarListaProfissionais();
+      lembrarEscolha();
       alerta('✅ Profissional cadastrado', 'Profissional <b>' + esc(nome) + '</b> cadastrado com sucesso!<br>Nº atribuído: <b>' + novoNum + '</b>');
     }
   } catch (e) {
@@ -931,6 +1100,7 @@ async function passo4Salvar(botao) {
 // ============================================================
 function passo5Limpar() {
   form = formularioVazio();
+  aplicarEscolhaInicial(form);   // estabelecimento e profissional já vêm preenchidos
   preencherEntradas();
   atualizarResumo();
   dados.salvarRascunho(form).catch(() => {});
