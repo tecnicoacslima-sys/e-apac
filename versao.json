@@ -1,9 +1,10 @@
 {
- "versao": "20261022T1204",
- "gerado": "2026-10-22T12:04:57.000Z",
+ "versao": "20261022T1244",
+ "gerado": "2026-10-22T12:44:14.000Z",
  "arquivos": [
   "config.js",
   "css/app.css",
+  "dados/protocolos-regulacao.json",
   "index.html",
   "js/app.js",
   "js/dados.js",
@@ -40,6 +41,7 @@
   "js/telas/juntar-pdf.js",
   "js/telas/pacientes.js",
   "js/telas/protocolo.js",
+  "js/telas/regulacao.js",
   "js/telas/sigtap.js",
   "js/ui.js",
   "privacidade/index.html",

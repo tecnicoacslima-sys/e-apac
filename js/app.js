@@ -13,6 +13,7 @@ const TELAS = {
   protocolo:   { rotulo: 'Protocolo',   carregar: () => import('./telas/protocolo.js') },
   conferencia: { rotulo: 'Conferência', carregar: () => import('./telas/conferencia.js') },
   sigtap:      { rotulo: 'SIGTAP',      carregar: () => import('./telas/sigtap.js') },
+  regulacao:   { rotulo: 'Regulação',   carregar: () => import('./telas/regulacao.js') },
   cadastros:   { rotulo: 'Cadastros',   carregar: () => import('./telas/cadastros.js') },
   ferramentas: { rotulo: 'Ferramentas', carregar: () => import('./telas/ferramentas.js') },
   exemplos:    { rotulo: 'Exemplos',    carregar: () => import('./telas/exemplos.js'), soTeste: true },

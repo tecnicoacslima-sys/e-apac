@@ -19,6 +19,7 @@ import { gerarPdfApac } from '../lib/pdf-apac.js';
 import { matrizQr, novoCodigoVerificacao, urlVerificacao } from '../lib/qr.js';
 import { PROMPT_GMUS, interpretarRelatorioGmus, aplicarRelatorioGmus, mesmoPaciente, CAMPOS_FIXOS } from '../lib/relatorio-gmus.js';
 import { abrirBuscaSigtap } from './sigtap.js';
+import { abrirBuscaRegulacao, termoDoProcedimento } from './regulacao.js';
 
 const LIMITE_PDF_MB = 22;   // a IA aceita ~32 MB por pedido; o base64 aumenta ~33%
 
@@ -554,6 +555,10 @@ function montarPainel() {
         h('hr', { class: 'divisor' }),
         h('button', { type: 'button', class: 'btn', style: { width: '100%' }, onclick: () => abrirBuscaSigtap({ aoEscolher: usarProcedimento }) },
           '🔍 Buscar procedimento SIGTAP'),
+        h('button', { type: 'button', class: 'btn', style: { width: '100%', marginTop: '8px' },
+          title: 'Critérios de encaminhamento e exames exigidos (Nova Mutum e Estado de MT) para o procedimento do formulário',
+          onclick: () => abrirBuscaRegulacao({ termo: termoDoProcedimento(form.proc_codigo, form.proc_nome) }) },
+          '📘 Critérios de regulação'),
         h('button', { type: 'button', class: 'btn', style: { width: '100%', marginTop: '8px' },
           title: 'Compara SUS, CELK, documento e comprovante de residência', onclick: () => { location.hash = '#/conferencia'; } },
           '🧾 Conferir espelhos'))));
