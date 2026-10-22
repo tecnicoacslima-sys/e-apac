@@ -121,6 +121,14 @@ export async function listarReferencia() {
 export async function cadastrarProfissional(nome, documento, tipo) {
   return ok(await sb.rpc('cadastrar_profissional', { p_nome: nome, p_documento: documento, p_tipo: tipo }));
 }
+/**
+ * Marca o estabelecimento ou o profissional que já vem escolhido em toda APAC nova da unidade.
+ * Só um por tabela. id = null → a unidade fica sem padrão.
+ */
+export async function definirPadrao(tabela, id) {
+  ok(await sb.from(tabela).update({ padrao: false }).eq('padrao', true));
+  if (id) ok(await sb.from(tabela).update({ padrao: true }).eq('id', id));
+}
 /** Salva uma linha de cadastro (tabela = estabelecimentos | profissionais | referencia_sigtap) */
 export async function salvarCadastro(tabela, linha) {
   const campos = { ...linha };
