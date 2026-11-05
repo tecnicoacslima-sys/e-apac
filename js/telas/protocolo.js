@@ -6,6 +6,9 @@
  *  • Imprime o "Protocolo de APAC's externas enviadas ao setor de
  *    Controle, Avaliação e Auditoria SUS" das linhas marcadas.
  *  • Exporta em planilha (CSV).
+ *  • Ordem das linhas: clique no título da coluna (Nome, Procedimento,
+ *    Código, Solic., Receb.) para ordenar, ou arraste pela alça ⠿.
+ *    A impressão e o CSV saem na mesma ordem da tela.
  *  • APACs geradas: reabre o PDF ou carrega no formulário.
  */
 import * as dados from '../dados.js';
@@ -15,7 +18,76 @@ import { carregarDadosSalvos } from './apac.js';
 
 let linhas = [];
 let marcadas = new Set();
-let corpo, contador, recarregarLista;
+let corpo, contador, recarregarLista, cabecalho;
+// ordem.campo = null → padrão (salvas mais recentes primeiro) ou ordem arrastada à mão
+let ordem = { campo: null, asc: true };
+let ordemManual = false;
+let arrastandoId = null;
+
+const COLUNAS_ORDEM = {
+  nome_paciente:    'texto',
+  procedimento:     'texto',
+  codigo:           'texto',
+  data_solicitacao: 'data',
+  data_recebimento: 'data'
+};
+
+/** Estilos só desta tela (alça de arrastar e títulos que ordenam). */
+function garantirEstilos() {
+  if (document.getElementById('estilo-protocolo-ordem')) return;
+  document.head.appendChild(h('style', { id: 'estilo-protocolo-ordem', html:
+    '.alca-arrastar{cursor:grab;color:var(--suave,#888);font-size:18px;line-height:1;user-select:none;padding:2px 4px;display:inline-block}' +
+    '.alca-arrastar:hover{color:var(--primaria,#1e6b45)}' +
+    '.alca-arrastar:active{cursor:grabbing}' +
+    '.tabela tr.arrastando td{opacity:.35}' +
+    '.tabela tr.soltar-acima td{box-shadow:inset 0 3px 0 var(--secundaria,#f07c00)}' +
+    '.tabela tr.soltar-abaixo td{box-shadow:inset 0 -3px 0 var(--secundaria,#f07c00)}' +
+    '.tabela th.ordenavel{cursor:pointer;user-select:none}' +
+    '.tabela th.ordenavel:hover{text-decoration:underline}' +
+    '.tabela th .seta-ordem{margin-left:4px;font-size:10px}' }));
+}
+
+function comparar(a, b, campo, asc) {
+  const tipo = COLUNAS_ORDEM[campo];
+  const va = a[campo] || '', vb = b[campo] || '';
+  // vazios sempre no fim, nas duas direções
+  if (!va && vb) return 1;
+  if (va && !vb) return -1;
+  let r = tipo === 'data' ? String(va).localeCompare(String(vb))
+                          : String(va).localeCompare(String(vb), 'pt-BR', { sensitivity: 'base', numeric: true });
+  if (!asc) r = -r;
+  if (r) return r;
+  // desempate: mesmo paciente/procedimento → solicitação mais antiga primeiro, depois a hora em que foi salva
+  return String(a.data_solicitacao || '').localeCompare(String(b.data_solicitacao || '')) ||
+         String(a.criado_em || '').localeCompare(String(b.criado_em || ''));
+}
+
+function aplicarOrdem() {
+  if (ordem.campo) linhas.sort((a, b) => comparar(a, b, ordem.campo, ordem.asc));
+}
+
+function ordenarPor(campo) {
+  if (ordem.campo === campo) ordem.asc = !ordem.asc;
+  else ordem = { campo, asc: true };
+  ordemManual = false;
+  aplicarOrdem();
+  desenhar();
+}
+
+function voltarOrdemOriginal() {
+  ordem = { campo: null, asc: true };
+  ordemManual = false;
+  linhas.sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')));
+  desenhar();
+}
+
+function atualizarSetas() {
+  if (!cabecalho) return;
+  cabecalho.querySelectorAll('th[data-campo]').forEach((th) => {
+    const seta = th.querySelector('.seta-ordem');
+    seta.textContent = th.dataset.campo === ordem.campo ? (ordem.asc ? '▲' : '▼') : '';
+  });
+}
 
 export async function montar(area) {
   const conteudo = h('div');
@@ -40,6 +112,7 @@ export async function montar(area) {
 // PROTOCOLO / CHECK-LIST
 // ============================================================
 function montarProtocolo(area) {
+  garantirEstilos();
   const hoje = partesData();
   const ini = new Date(Date.now() - 30 * 86400000);
   const pi = partesData(ini);
@@ -56,16 +129,23 @@ function montarProtocolo(area) {
 
   // manter = true → depois de editar/incluir, as linhas que estavam marcadas continuam marcadas
   const carregar = async (manter) => {
-    corpo.innerHTML = '<tr><td colspan="12"><div class="carregando"><span class="spinner"></span>Carregando…</div></td></tr>';
+    corpo.innerHTML = '<tr><td colspan="13"><div class="carregando"><span class="spinner"></span>Carregando…</div></td></tr>';
     const antes = manter === true ? marcadas : new Set();
+    // depois de editar/incluir, a ordem arrastada à mão continua igual (linha nova entra no topo)
+    const posicaoAntes = manter === true && ordemManual ? new Map(linhas.map((l, i) => [l.id, i])) : null;
+    if (!posicaoAntes) ordemManual = false;
     marcadas = new Set();
     marcarTodos.checked = false;
     try {
       linhas = await dados.listarProtocolo({ de: de.value, ate: ate.value, texto: texto.value });
       linhas.forEach((l) => { if (antes.has(l.id)) marcadas.add(l.id); });
+      if (posicaoAntes) {
+        const pos = (l) => (posicaoAntes.has(l.id) ? posicaoAntes.get(l.id) : -1);
+        linhas.sort((a, b) => pos(a) - pos(b));
+      } else aplicarOrdem();
       desenhar();
     } catch (e) {
-      corpo.innerHTML = '<tr><td colspan="12"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
+      corpo.innerHTML = '<tr><td colspan="13"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
     }
   };
   recarregarLista = carregar;
@@ -82,14 +162,68 @@ function montarProtocolo(area) {
       h('button', { class: 'btn principal', onclick: imprimirProtocolo }, '🖨️ Imprimir protocolo (linhas marcadas)'),
       h('button', { class: 'btn laranja', onclick: () => editarLinha(null) }, '➕ Incluir APAC no protocolo'),
       h('button', { class: 'btn', onclick: exportarCsv }, '⬇️ Baixar planilha (CSV)'),
+      h('button', { class: 'btn', title: 'Volta para a ordem de quando foram salvas (mais recentes primeiro)', onclick: voltarOrdemOriginal }, '↺ Ordem original'),
       contador),
+    h('p', { class: 'mudo pequeno', style: { margin: '0 0 8px' } },
+      'Clique no título da coluna (Nome, Procedimento, Código, Solic., Receb.) para ordenar, ou arraste a linha pela alça ⠿. ' +
+      'A impressão e o CSV saem na mesma ordem da tela.'),
     h('div', { class: 'tabela-rolagem', style: { maxHeight: '65vh' } }, h('table', { class: 'tabela' },
-      h('thead', null, h('tr', null,
-        h('th', { class: 'centro' }, marcarTodos), h('th', null, 'Nome'), h('th', null, 'Sexo'), h('th', null, 'Procedimento'),
-        h('th', null, 'CID'), h('th', null, 'Código'), h('th', null, 'Médico solicitante'), h('th', null, 'Solic.'),
-        h('th', null, 'Receb.'), h('th', null, 'Página'), h('th', null, 'Obs.'), h('th', null, ''))),
+      cabecalho = h('thead', null, h('tr', null,
+        h('th', null, ''), h('th', { class: 'centro' }, marcarTodos), thOrdem('Nome', 'nome_paciente'), h('th', null, 'Sexo'),
+        thOrdem('Procedimento', 'procedimento'), h('th', null, 'CID'), thOrdem('Código', 'codigo'), h('th', null, 'Médico solicitante'),
+        thOrdem('Solic.', 'data_solicitacao'), thOrdem('Receb.', 'data_recebimento'), h('th', null, 'Página'), h('th', null, 'Obs.'), h('th', null, ''))),
       corpo)))));
   carregar();
+}
+
+function thOrdem(rotulo, campo) {
+  return h('th', { class: 'ordenavel', 'data-campo': campo, title: 'Clique para ordenar (clique de novo para inverter)', onclick: () => ordenarPor(campo) },
+    rotulo, h('span', { class: 'seta-ordem' }));
+}
+
+/** Liga o arrastar-e-soltar numa linha. Só arrasta segurando a alça ⠿ (assim não atrapalha digitar nas células). */
+function ligarArrastar(tr, alca, l) {
+  alca.addEventListener('mousedown', () => { tr.draggable = true; });
+  alca.addEventListener('mouseup', () => { tr.draggable = false; });
+  const limparMarcas = () => corpo.querySelectorAll('.soltar-acima, .soltar-abaixo')
+    .forEach((x) => x.classList.remove('soltar-acima', 'soltar-abaixo'));
+  tr.addEventListener('dragstart', (e) => {
+    arrastandoId = l.id;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(l.id)); } catch (er) { /* alguns navegadores */ }
+    setTimeout(() => tr.classList.add('arrastando'), 0);
+  });
+  tr.addEventListener('dragend', () => {
+    tr.draggable = false;
+    tr.classList.remove('arrastando');
+    arrastandoId = null;
+    limparMarcas();
+  });
+  tr.addEventListener('dragover', (e) => {
+    if (arrastandoId === null || arrastandoId === l.id) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const r = tr.getBoundingClientRect();
+    const acima = e.clientY < r.top + r.height / 2;
+    limparMarcas();
+    tr.classList.add(acima ? 'soltar-acima' : 'soltar-abaixo');
+  });
+  tr.addEventListener('drop', (e) => {
+    if (arrastandoId === null || arrastandoId === l.id) return;
+    e.preventDefault();
+    const r = tr.getBoundingClientRect();
+    const acima = e.clientY < r.top + r.height / 2;
+    const de = linhas.findIndex((x) => x.id === arrastandoId);
+    if (de < 0) return;
+    const [movida] = linhas.splice(de, 1);
+    let para = linhas.findIndex((x) => x.id === l.id);
+    if (!acima) para += 1;
+    linhas.splice(para, 0, movida);
+    ordem = { campo: null, asc: true };
+    ordemManual = true;
+    arrastandoId = null;
+    desenhar();
+  });
 }
 
 function atualizarContador() {
@@ -98,7 +232,8 @@ function atualizarContador() {
 
 function desenhar() {
   corpo.innerHTML = '';
-  if (!linhas.length) corpo.innerHTML = '<tr><td colspan="12" class="vazio-tabela">Nada salvo neste período.</td></tr>';
+  atualizarSetas();
+  if (!linhas.length) corpo.innerHTML = '<tr><td colspan="13" class="vazio-tabela">Nada salvo neste período.</td></tr>';
   linhas.forEach((l) => {
     const celula = (campo, valor, larg, ehData) => {
       const inp = h('input', { class: 'celula', value: valor || '', style: { width: larg } });
@@ -118,7 +253,9 @@ function desenhar() {
       if (e.target.checked) marcadas.add(l.id); else marcadas.delete(l.id);
       atualizarContador();
     } });
-    corpo.appendChild(h('tr', null,
+    const alca = h('span', { class: 'alca-arrastar', title: 'Segure e arraste para mudar a posição' }, '⠿');
+    const tr = h('tr', null,
+      h('td', { class: 'centro', style: { width: '26px', padding: '6px 2px' } }, alca),
       h('td', { class: 'centro' }, marca),
       h('td', null, h('strong', null, l.nome_paciente), h('div', { class: 'mudo pequeno' }, 'salvo em ' + dataHoraBR(l.criado_em))),
       h('td', { class: 'centro' }, l.sexo),
@@ -136,7 +273,9 @@ function desenhar() {
         if (!await confirmar('Excluir linha', 'Excluir <b>' + esc(l.nome_paciente) + '</b> — ' + esc(l.procedimento) + ' do protocolo?', { sim: 'Excluir', perigo: true })) return;
         try { await dados.excluirProtocolo(l.id); linhas = linhas.filter((x) => x.id !== l.id); marcadas.delete(l.id); desenhar(); }
         catch (e) { toast(e.message, '❌ Erro', 'erro'); }
-      } }, '🗑️'))));
+      } }, '🗑️')));
+    ligarArrastar(tr, alca, l);
+    corpo.appendChild(tr);
   });
   atualizarContador();
 }
