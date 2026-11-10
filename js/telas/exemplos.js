@@ -14,7 +14,7 @@ import { h } from '../ui.js';
 const BUCKET = 'demonstracao';
 
 const DOCUMENTOS = [
-  { arquivo: '1_Espelho_SUS',            rotulo: 'Espelho SUS / CADSUS',     icone: '🪪' },
+  { arquivo: '1_Espelho_SUS',            rotulo: 'Espelho SUS / CADSUS',     icone: '💳' },
   { arquivo: '2_Espelho_CELK',           rotulo: 'Espelho CELK',             icone: '🗂️' },
   { arquivo: '3_Documento',              rotulo: 'Documento de identidade',  icone: '🆔' },
   { arquivo: '4_Comprovante_Residencia', rotulo: 'Comprovante de residência', icone: '🏠' },

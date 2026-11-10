@@ -5,7 +5,7 @@
  * A lista (rótulos, ícones, quem vê) fica em app.js ▸ SUB_FERRAMENTAS.
  *
  * Ferramentas:
- *   📊 Consumo da IA · 🔌 Testar acesso à IA · 🪪 Conferir Cartões SUS
+ *   📊 Consumo da IA · 🔌 Testar acesso à IA · 💳 Conferir Cartões SUS
  *   ✏️ Dados da unidade (+ brasão) · 📥 Importar planilha antiga
  *   📎 Juntar PDFs · 📝 Declaração de ciência e 💓 Juntar ECG (telas próprias) · 💾 Cópia de segurança · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador (e o computador)
  *   Só no programa de computador: 🔑 Trocar a senha · 🗂️ Pasta dos dados · modo híbrido (dentro de 🔌 Acesso à IA)
@@ -228,10 +228,10 @@ function cartaoUnidade() {
       status, botao));
 }
 
-// ---------------- 🪪 CONFERIR CARTÕES SUS ----------------
+// ---------------- 💳 CONFERIR CARTÕES SUS ----------------
 function cartaoCartoes() {
   const saida = h('div');
-  const botao = h('button', { class: 'btn' }, '🪪 Conferir agora');
+  const botao = h('button', { class: 'btn' }, '💳 Conferir agora');
   botao.addEventListener('click', () => comCarregando(botao, 'Conferindo…', async () => {
     try {
       const [prof, pac] = await Promise.all([dados.listarProfissionais(), dados.lerTodas('pacientes', 'nome, cns, cpf')]);
@@ -260,7 +260,7 @@ function cartaoCartoes() {
       saida.innerHTML = '<div class="msg erro">' + esc(e.message) + '</div>';
     }
   }));
-  return h('section', { class: 'card' }, h('h2', null, '🪪 Conferir Cartões SUS cadastrados'),
+  return h('section', { class: 'card' }, h('h2', null, '💳 Conferir Cartões SUS cadastrados'),
     h('div', { class: 'card-conteudo' },
       h('p', { class: 'mudo pequeno', style: { marginTop: 0 } }, 'Confere o dígito verificador do CNS e do CPF de todos os profissionais e pacientes. Não altera nada.'),
       botao, saida));
