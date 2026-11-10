@@ -19,18 +19,23 @@ const TELAS = {
   exemplos:    { rotulo: 'Exemplos',    carregar: () => import('./telas/exemplos.js'), soTeste: true },
   importar:    { rotulo: 'Importar',    carregar: () => import('./telas/importar.js'), escondido: true },
   juntar:      { rotulo: 'Juntar PDFs', carregar: () => import('./telas/juntar-pdf.js'), escondido: true },
+  declaracao:  { rotulo: 'Declaração de ciência', carregar: () => import('./telas/declaracao.js'), escondido: true },
+  ecg:         { rotulo: 'Juntar ECG',  carregar: () => import('./telas/ecg.js'), escondido: true },
   admin:       { rotulo: 'Admin',       carregar: () => import('./telas/admin.js'), soAdmin: true }
 };
 
 /**
  * Submenu de Ferramentas (abre ao passar o mouse em "Ferramentas" no topo).
- * Cada item abre só aquela ferramenta: #/ferramentas/<chave>.
+ * Cada item abre só aquela ferramenta: #/ferramentas/<chave>
+ * (ou, quando tem "tela", vai direto para ela: #/<tela>).
  * A tela Ferramentas usa esta mesma lista (rótulos num lugar só).
  */
 export const SUB_FERRAMENTAS = [
   { chave: 'copia',    icone: '💾', rotulo: 'Cópia de segurança',       desc: 'Baixa todos os dados da unidade numa planilha Excel.' },
   { chave: 'consumo',  icone: '📊', rotulo: 'Consumo da IA',            desc: 'Chamadas e tokens usados em cada mês.' },
   { chave: 'juntar',   icone: '📎', rotulo: 'Juntar PDFs',              desc: 'Vários PDFs e fotos num arquivo só.' },
+  { chave: 'declaracao', icone: '📝', rotulo: 'Declaração de ciência',  desc: 'Nome ou nome da mãe diferente entre certidão, CPF e CELK.', tela: 'declaracao' },
+  { chave: 'ecg',      icone: '🫀', rotulo: 'Juntar ECG',               desc: 'Eletro digitalizado em 2 partes → 1 folha A4.', tela: 'ecg' },
   { chave: 'unidade',  icone: '✏️', rotulo: 'Dados da unidade',         desc: 'Nome, município, e-mail da secretaria e brasão.' },
   { chave: 'cartoes',  icone: '🪪', rotulo: 'Conferir Cartões SUS',     desc: 'Confere o CNS e o CPF de profissionais e pacientes.' },
   { chave: 'teste-ia', icone: '🔌', rotulo: 'Acesso à IA',              desc: 'Confere se a IA está respondendo.' },
@@ -151,9 +156,14 @@ function grupoFerramentas(t) {
   grupo.append(
     h('a', { href: '#/ferramentas', 'data-tela': 'ferramentas', 'aria-haspopup': 'true', onclick: cliqueNoTitulo }, t.rotulo, h('span', { class: 'seta' }, ' ▾')),
     h('div', { class: 'submenu', role: 'menu' },
-      ...ferramentasVisiveis().map((f) => h('a', { href: '#/ferramentas/' + f.chave, role: 'menuitem', onclick: fechar },
+      ...ferramentasVisiveis().map((f) => h('a', { href: enderecoFerramenta(f), role: 'menuitem', onclick: fechar },
         h('span', { class: 'ico' }, f.icone), f.rotulo))));
   return grupo;
+}
+
+/** Endereço de uma ferramenta: a tela própria, se tiver, ou a página dentro de Ferramentas. */
+export function enderecoFerramenta(f) {
+  return f.tela ? '#/' + f.tela : '#/ferramentas/' + f.chave;
 }
 
 export function subtituloUnidade(u) {

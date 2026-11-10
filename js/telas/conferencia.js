@@ -12,6 +12,9 @@
  * 🗜️ Caixa EXAMES (separada da conferência): junta e comprime os exames num
  * PDF próprio (exames_NOME_DATA.pdf), abaixo do limite de 20 MB do CELK.
  * Não entra na comparação com IA nem no PDF de espelhos+docs+res.
+ *
+ * 📝 Quando o "Nome Completo" ou o "Nome da Mãe" não conferem, aparece o botão
+ * "Declaração de ciência", que abre a declaração já preenchida com os nomes.
  */
 import * as dados from '../dados.js';
 import { h, toast, modal, alerta, comCarregando, lerArquivoBase64, atrasar, abrirPdfGuardado, baixarPdf } from '../ui.js';
@@ -25,6 +28,7 @@ import { gerarPdfConferencia } from '../lib/pdf-conferencia.js';
 import { juntarPdfs, nomePdfUnico, nomeSobrenome, tipoParaJuntar } from '../lib/juntar-pdf.js';
 import { comprimirExames, LIMITE_EXAMES_MB, textoMB, nomePdfExames } from '../lib/comprimir-pdf.js';
 import { arquivosParaItens } from './juntar-pdf.js';
+import { sugestaoDaConferencia, guardarPreenchimento } from '../lib/declaracao.js';
 
 let selecao = {};
 let zonas = {};
@@ -423,7 +427,26 @@ function mostrarResultado(conf, bytes) {
       h('button', { type: 'button', class: 'btn', title: 'SUS → CELK → documento → comprovante, num PDF só (sem o relatório)',
         onclick: (e) => juntarDocumentos(e.currentTarget, conf.paciente) }, '📎 Juntar documentos em PDF único'),
       h('button', { type: 'button', class: 'btn', onclick: limparSelecao }, '➕ Nova conferência')),
+    avisoDeclaracao(conf),
     tabelaCampos(conf));
+}
+
+/**
+ * 📝 Nome ou nome da mãe divergente → atalho para a Declaração de ciência
+ * já preenchida. aoAbrir: fecha a janela, quando vem do histórico.
+ */
+function avisoDeclaracao(conf, aoAbrir) {
+  const s = sugestaoDaConferencia(conf);
+  if (!s) return null;
+  const qual = s.tipo === 'mae' ? 'O nome da mãe' : 'O nome do paciente';
+  return h('div', { class: 'msg aviso', style: { display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' } },
+    h('span', { style: { flex: '1', minWidth: '220px' } }, '📝 ', h('b', null, qual + ' não confere entre os documentos.'),
+      ' Se o paciente precisar regularizar, gere a declaração de ciência já preenchida.'),
+    h('button', { type: 'button', class: 'btn principal', onclick: () => {
+      guardarPreenchimento(s);
+      if (aoAbrir) aoAbrir();
+      location.hash = '#/declaracao';
+    } }, '📝 Declaração de ciência'));
 }
 
 /** Nome do arquivo do relatório: 2026-10-07_NOME_DO_PACIENTE.pdf */
@@ -475,13 +498,14 @@ function desenharHistorico(lista) {
 }
 
 function verConferencia(c) {
-  modal({
+  const janela = modal({
     titulo: '🧾 ' + (c.paciente || 'Conferência') + ' · ' + dataHoraBR(c.criado_em),
     largura: 1000,
     conteudo: h('div', null,
       c.cns ? h('p', { style: { marginTop: '0' } }, 'CNS: ', h('b', null, c.cns)) : null,
       c.resumo ? h('div', { class: 'msg info' }, c.resumo) : null,
       contadores(c.campos),
+      avisoDeclaracao(c, () => janela.fechar()),
       tabelaCampos(c)),
     botoes: [
       { texto: '🖨️ Abrir relatório em PDF', classe: 'principal', acao: () => abrirRelatorio(c) },

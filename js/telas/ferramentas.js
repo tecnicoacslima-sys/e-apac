@@ -7,14 +7,14 @@
  * Ferramentas:
  *   📊 Consumo da IA · 🔌 Testar acesso à IA · 🪪 Conferir Cartões SUS
  *   ✏️ Dados da unidade (+ brasão) · 📥 Importar planilha antiga
- *   📎 Juntar PDFs · 💾 Cópia de segurança · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador (e o computador)
+ *   📎 Juntar PDFs · 📝 Declaração de ciência e 🫀 Juntar ECG (telas próprias) · 💾 Cópia de segurança · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador (e o computador)
  *   Só no programa de computador: 🔑 Trocar a senha · 🗂️ Pasta dos dados · modo híbrido (dentro de 🔌 Acesso à IA)
  */
 import * as dados from '../dados.js';
 import { h, toast, comCarregando, listaHtml, alerta, confirmar } from '../ui.js';
 import { esc, fmtNum, rotuloMes, partesData } from '../lib/texto.js';
 import { motivoCNSInvalido, validarCPF, soDigitos } from '../lib/validacao.js';
-import { atualizarSubtitulo, ferramentasVisiveis } from '../app.js';
+import { atualizarSubtitulo, ferramentasVisiveis, enderecoFerramenta } from '../app.js';
 import { abrirAtualizarSigtap } from './atualizar-sigtap.js';
 import { rotuloCompetencia } from '../lib/sigtap-zip.js';
 import { listarTabelasRepo } from '../lib/sigtap-repo.js';
@@ -49,7 +49,7 @@ export async function montar(area) {
   if (!document.getElementById('estilo-ferramentas')) document.head.appendChild(h('style', { id: 'estilo-ferramentas' }, ESTILO));
   const lista = ferramentasVisiveis();
   const m = location.hash.match(/^#\/ferramentas\/([a-z-]+)/);
-  const escolhida = m && lista.find((f) => f.chave === m[1]);
+  const escolhida = m && lista.find((f) => f.chave === m[1] && CARTOES[f.chave]);
 
   if (!escolhida) {
     area.append(
@@ -57,7 +57,7 @@ export async function montar(area) {
         h('h1', null, '🔧 Ferramentas'),
         h('p', { class: 'mudo' }, 'Escolha a ferramenta.'))),
       h('div', { class: 'ferr-lista' }, ...lista.map((f) =>
-        h('a', { class: 'ferr-item', href: '#/ferramentas/' + f.chave },
+        h('a', { class: 'ferr-item', href: enderecoFerramenta(f) },
           h('span', { class: 'ico' }, f.icone),
           h('span', null, h('b', null, f.rotulo), h('span', { class: 'desc' }, f.desc))))));
     return;
