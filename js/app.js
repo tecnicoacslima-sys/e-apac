@@ -35,7 +35,7 @@ export const SUB_FERRAMENTAS = [
   { chave: 'consumo',  icone: '📊', rotulo: 'Consumo da IA',            desc: 'Chamadas e tokens usados em cada mês.' },
   { chave: 'juntar',   icone: '📎', rotulo: 'Juntar PDFs',              desc: 'Vários PDFs e fotos num arquivo só.' },
   { chave: 'declaracao', icone: '📝', rotulo: 'Declaração de ciência',  desc: 'Nome ou nome da mãe diferente entre certidão, CPF e CELK.', tela: 'declaracao' },
-  { chave: 'ecg',      icone: '🫀', rotulo: 'Juntar ECG',               desc: 'Eletro digitalizado em 2 partes → 1 folha A4.', tela: 'ecg' },
+  { chave: 'ecg',      icone: '💓', rotulo: 'Juntar ECG',               desc: 'Eletro digitalizado em 2 partes → 1 folha A4.', tela: 'ecg' },
   { chave: 'unidade',  icone: '✏️', rotulo: 'Dados da unidade',         desc: 'Nome, município, e-mail da secretaria e brasão.' },
   { chave: 'cartoes',  icone: '🪪', rotulo: 'Conferir Cartões SUS',     desc: 'Confere o CNS e o CPF de profissionais e pacientes.' },
   { chave: 'teste-ia', icone: '🔌', rotulo: 'Acesso à IA',              desc: 'Confere se a IA está respondendo.' },

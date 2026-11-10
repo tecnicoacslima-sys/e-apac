@@ -1,5 +1,5 @@
 /**
- * 🫀 JUNTAR ECG (Ferramentas ▸ Juntar ECG)
+ * 💓 JUNTAR ECG (Ferramentas ▸ Juntar ECG)
  *
  * O eletrocardiograma vem numa tira de ~10 × 50 cm, que não cabe no scanner.
  * Digitaliza-se pelo vidro em duas partes; aqui as duas partes são cortadas
@@ -180,7 +180,7 @@ export async function montar(area) {
   const input = h('input', { type: 'file', multiple: true, accept: 'application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png' });
   const status = h('div', { class: 'pequeno mudo', style: { marginTop: '6px' } });
   const zona = h('label', { class: 'ecg-zona' },
-    h('div', { style: { fontSize: '28px' } }, '🫀'),
+    h('div', { style: { fontSize: '28px' } }, '💓'),
     h('div', null, h('b', null, 'Escolha o PDF digitalizado'), ' ou arraste para cá'),
     h('div', { class: 'pequeno mudo' }, 'PDF com as 2 partes, ou 2 fotos/imagens (JPG/PNG)'),
     input);
@@ -253,7 +253,7 @@ export async function montar(area) {
 
   area.append(
     h('div', { class: 'titulo-tela' }, h('div', null,
-      h('h1', null, '🫀 Juntar ECG'),
+      h('h1', null, '💓 Juntar ECG'),
       h('p', { class: 'mudo' }, 'Eletro digitalizado pelo vidro em duas partes → uma folha A4 só, com as partes lado a lado.'))),
     h('div', { class: 'ecg-grade' },
       h('div', null,
