@@ -45,6 +45,7 @@ const ESTILO = ESTILO_FOLHA + `
 .decl-form legend { font-weight: 700; color: var(--primaria); font-size: 13px; padding: 0 4px; }
 .decl-opcoes { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; margin: 2px 0 8px; }
 .decl-opcoes label, .campo .decl-opcoes label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; text-transform: none; font-size: 13px; font-weight: 400; color: var(--texto); letter-spacing: 0; margin: 0; white-space: normal; overflow: visible; }
+.decl-opcoes input[type=radio], .decl-opcoes input[type=checkbox], .campo .decl-opcoes input { width: auto; min-height: 0; height: auto; padding: 0; margin: 0; flex: none; }
 .decl-linha { display: flex; gap: 8px; } .decl-linha > .campo { flex: 1; }
 .decl-dica { font-size: 11.5px; color: var(--rotulo); margin: -4px 0 8px; }
 .decl-aviso { font-size: 11.5px; color: var(--erro); margin: -6px 0 8px; }

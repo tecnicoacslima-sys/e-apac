@@ -7,7 +7,7 @@
  * Ferramentas:
  *   📊 Consumo da IA · 🔌 Testar acesso à IA · 🪪 Conferir Cartões SUS
  *   ✏️ Dados da unidade (+ brasão) · 📥 Importar planilha antiga
- *   📎 Juntar PDFs · 📝 Declaração de ciência e 🫀 Juntar ECG (telas próprias) · 💾 Cópia de segurança · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador (e o computador)
+ *   📎 Juntar PDFs · 📝 Declaração de ciência e 💓 Juntar ECG (telas próprias) · 💾 Cópia de segurança · 📥 Atualizar tabela SIGTAP (.zip) — só o administrador (e o computador)
  *   Só no programa de computador: 🔑 Trocar a senha · 🗂️ Pasta dos dados · modo híbrido (dentro de 🔌 Acesso à IA)
  */
 import * as dados from '../dados.js';
