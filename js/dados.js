@@ -238,6 +238,44 @@ export async function listarApacs(limite = 100, texto = '') {
   return ok(await q.order('criado_em', { ascending: false }).limit(limite)) || [];
 }
 
+// ---------------- 📋 PRONTUÁRIO (histórico de cada APAC) ----------------
+/** Pacientes que já têm APAC gerada; texto = parte do nome ou do Cartão SUS. */
+export async function pacientesComApac(texto) {
+  const t = String(texto || '').trim().replace(/[%,()*]/g, ' ').trim();
+  const dig = t.replace(/\D/g, '');
+  let q = sb.from('apacs').select('paciente_nome, paciente_cns, criado_em');
+  if (dig.length >= 6 && dig.length === t.replace(/[\s.\-]/g, '').length) q = q.ilike('paciente_cns', '*' + dig + '*');
+  else t.split(/\s+/).filter(Boolean).forEach((w) => { q = q.ilike('paciente_nome', '*' + w + '*'); });
+  const linhas = ok(await q.order('criado_em', { ascending: false }).limit(1000)) || [];
+  const mapa = new Map();
+  linhas.forEach((l) => {
+    const p = mapa.get(l.paciente_cns);
+    if (p) p.total++;
+    else mapa.set(l.paciente_cns, { cns: l.paciente_cns, nome: l.paciente_nome, ultima: l.criado_em, total: 1 });
+  });
+  return [...mapa.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+/** Todas as APACs de um paciente (pelo Cartão SUS), das mais novas para as mais antigas. */
+export async function apacsDoPaciente(cns) {
+  return ok(await sb.from('apacs').select('*').eq('paciente_cns', cns).order('criado_em', { ascending: false })) || [];
+}
+/** Eventos (histórico) das APACs pedidas, em ordem de data. */
+export async function eventosDasApacs(ids) {
+  const lista = [];
+  for (let i = 0; i < ids.length; i += 150) {
+    const parte = ok(await sb.from('apac_eventos').select('*').in('apac_id', ids.slice(i, i + 150))
+      .order('data').order('criado_em'));
+    lista.push(...parte);
+  }
+  return lista;
+}
+/** Grava um evento: { apac_id, data, tipo, descricao, apacs_relacionadas } */
+export async function registrarEventoApac(evento) {
+  const p = sessao.perfil || {};
+  return ok(await sb.from('apac_eventos').insert({ ...evento, criado_por_nome: p.nome || p.email || '' }).select('id').single());
+}
+export async function excluirEventoApac(id) { ok(await sb.from('apac_eventos').delete().eq('id', id)); }
+
 // ---------------- CONFERÊNCIAS ----------------
 /** Grava uma conferência. Devolve { id, criado_em }. */
 export async function registrarConferencia(linha) {
@@ -383,6 +421,7 @@ export const TABELAS_COPIA = [
   { tabela: 'pacientes',         rotulo: 'Pacientes' },
   { tabela: 'protocolo',         rotulo: 'Protocolo' },
   { tabela: 'apacs',             rotulo: 'APACs geradas' },
+  { tabela: 'apac_eventos',      rotulo: 'Histórico das APACs' },
   { tabela: 'conferencias',      rotulo: 'Conferências' },
   { tabela: 'profissionais',     rotulo: 'Profissionais' },
   { tabela: 'estabelecimentos',  rotulo: 'Estabelecimentos' },

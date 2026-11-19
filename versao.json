@@ -1,6 +1,6 @@
 {
- "versao": "20261110T1840",
- "gerado": "2026-11-10T18:40:00.000Z",
+ "versao": "20261118T2200",
+ "gerado": "2026-11-19T02:00:00.000Z",
  "arquivos": [
   "config.js",
   "css/app.css",
@@ -43,6 +43,7 @@
   "js/telas/importar.js",
   "js/telas/juntar-pdf.js",
   "js/telas/pacientes.js",
+  "js/telas/prontuario.js",
   "js/telas/protocolo.js",
   "js/telas/regulacao.js",
   "js/telas/sigtap.js",

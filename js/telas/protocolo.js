@@ -15,6 +15,7 @@ import * as dados from '../dados.js';
 import { h, toast, confirmar, alerta, modal, comCarregando, atrasar } from '../ui.js';
 import { esc, isoParaBR, brParaISO, mascararData, dataHoraBR, partesData, hojeBR, codigoSigtap10 } from '../lib/texto.js';
 import { carregarDadosSalvos } from './apac.js';
+import { situacaoDaApac, seloSituacao } from './prontuario.js';
 
 let linhas = [];
 let marcadas = new Set();
@@ -461,9 +462,17 @@ async function montarApacs(area) {
     contadorA.textContent = '';
     try {
       const lista = await dados.listarApacs(100, t);
+      // situação de cada uma (último evento do prontuário); se falhar, a lista sai sem ela
+      const eventos = new Map();
+      try {
+        (await dados.eventosDasApacs(lista.map((a) => a.id))).forEach((e) => {
+          if (!eventos.has(e.apac_id)) eventos.set(e.apac_id, []);
+          eventos.get(e.apac_id).push(e);
+        });
+      } catch (e) { console.warn(e); }
       corpoA.innerHTML = '';
       if (!lista.length) corpoA.innerHTML = '<tr><td colspan="4" class="vazio-tabela">' + (t ? 'Nenhuma APAC encontrada para essa busca.' : 'Nenhuma APAC gerada ainda.') + '</td></tr>';
-      lista.forEach((a) => corpoA.appendChild(linhaApac(a)));
+      lista.forEach((a) => corpoA.appendChild(linhaApac(a, eventos.get(a.id))));
       contadorA.textContent = lista.length + ' APAC(s)';
     } catch (e) {
       corpoA.innerHTML = '<tr><td colspan="4"><div class="msg erro">' + esc(e.message) + '</div></td></tr>';
@@ -485,7 +494,7 @@ async function montarApacs(area) {
   carregar();
 }
 
-function linhaApac(a) {
+function linhaApac(a, eventos) {
   const cancelada = !!a.cancelada_em;
   const tr = h('tr', { class: cancelada ? 'apac-cancelada' : '' },
     h('td', null, dataHoraBR(a.criado_em),
@@ -493,8 +502,10 @@ function linhaApac(a) {
     h('td', null, h('strong', null, a.paciente_nome), h('div', { class: 'mudo pequeno' }, 'CNS ' + (a.paciente_cns || '—')),
       cancelada ? h('div', { class: 'pequeno', style: { color: 'var(--vermelho)' } },
         '🚫 Cancelada em ' + dataHoraBR(a.cancelada_em) + (a.cancelada_por ? ' por ' + a.cancelada_por : '') + (a.cancelada_motivo ? ' — ' + a.cancelada_motivo : '')) : null),
-    h('td', null, (a.proc_codigo ? a.proc_codigo + ' · ' : '') + a.proc_nome),
+    h('td', null, (a.proc_codigo ? a.proc_codigo + ' · ' : '') + a.proc_nome,
+      h('div', { style: { marginTop: '3px' } }, seloSituacao(situacaoDaApac(a, eventos)))),
     h('td', { class: 'direita' }, h('div', { class: 'botoes', style: { justifyContent: 'flex-end' } },
+      a.paciente_cns ? h('a', { class: 'btn pequeno', href: '#/prontuario/' + a.paciente_cns, title: 'Todas as APACs do paciente e o histórico de cada uma' }, '📋 Prontuário') : null,
       a.pdf_path ? h('button', { class: 'btn pequeno', onclick: async () => {
         try { window.open(await dados.linkTemporario('apacs', a.pdf_path, 600), '_blank'); }
         catch (e) { toast(e.message, '❌ Erro', 'erro'); }
@@ -505,7 +516,7 @@ function linhaApac(a) {
         location.hash = '#/apac';
       } }, '↩️ Carregar no formulário'),
       !cancelada ? h('button', { class: 'btn pequeno perigo-texto', title: 'Cancelar esta APAC (gerada com erro)',
-        onclick: () => perguntarCancelamento(a, (novo) => tr.replaceWith(linhaApac(novo))) }, '🚫 Cancelar') : null)));
+        onclick: () => perguntarCancelamento(a, (novo) => tr.replaceWith(linhaApac(novo, eventos))) }, '🚫 Cancelar') : null)));
   return tr;
 }
 

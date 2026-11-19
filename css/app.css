@@ -343,3 +343,34 @@ a.btn { text-decoration: none; }
 .apac-cancelada td { background: #FBF0F0; }
 .apac-cancelada td strong { text-decoration: line-through; color: #8a6b6b; }
 .btn.perigo-texto { color: var(--vermelho); }
+
+/* ---------------- 📋 PRONTUÁRIO DAS APACs ---------------- */
+.selo-situacao { display: inline-block; font-size: 11.5px; font-weight: 700; border-radius: 12px; padding: 2px 9px; white-space: nowrap; border: 1px solid transparent; }
+.selo-situacao.cor-azul     { background: #E8F1FA; color: #1F5A8E; border-color: #BCD4EC; }
+.selo-situacao.cor-laranja  { background: #FFF1E5; color: #A84300; border-color: #F5CBA7; }
+.selo-situacao.cor-roxo     { background: #F1ECF8; color: #55398A; border-color: #D3C6EA; }
+.selo-situacao.cor-verde    { background: var(--ok-fundo); color: var(--ok); border-color: var(--ok-borda); }
+.selo-situacao.cor-vermelho { background: var(--erro-fundo); color: var(--erro); border-color: var(--erro-borda); }
+.selo-situacao.cor-cinza    { background: #F1F3F5; color: #5B6776; border-color: #DADFE4; }
+.cartao-prontuario { margin-bottom: 14px; transition: box-shadow .3s; }
+.cartao-prontuario.apac-cancelada { opacity: .75; }
+.cartao-prontuario.piscar { box-shadow: 0 0 0 3px var(--destaque); }
+.prontuario-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.prontuario-proc { font-weight: 700; font-size: 15px; color: var(--primaria); }
+.linha-tempo { list-style: none; margin: 12px 0 0; padding: 0 0 0 6px; border-left: 2px solid var(--borda-card); }
+.linha-tempo li { position: relative; display: flex; gap: 8px; padding: 6px 0 6px 10px; }
+.linha-tempo .lt-icone { flex: 0 0 26px; height: 26px; margin-left: -24px; border-radius: 50%; background: #fff; border: 2px solid var(--borda-card); display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.linha-tempo li.cor-azul .lt-icone { border-color: #7FA9D6; }
+.linha-tempo li.cor-laranja .lt-icone { border-color: #F0A060; }
+.linha-tempo li.cor-roxo .lt-icone { border-color: #A994D3; }
+.linha-tempo li.cor-verde .lt-icone { border-color: #6DBB8F; }
+.linha-tempo li.cor-vermelho .lt-icone { border-color: #D98080; }
+.linha-tempo .lt-corpo { flex: 1; min-width: 0; padding-top: 3px; }
+.linha-tempo .lt-texto { white-space: pre-wrap; background: var(--auto-fundo); border-radius: 6px; padding: 6px 9px; margin-top: 4px; }
+.linha-tempo .lt-ligadas { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; font-size: 13px; }
+.linha-tempo .lt-rodape { font-size: 11.5px; color: var(--suave); margin-top: 3px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.linha-tempo .lt-rodape .btn.link { font-size: 11.5px; padding: 0; }
+.lista-ligar { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow: auto; border: 1px solid var(--borda-card); border-radius: 6px; padding: 8px; }
+.rotulo-ligar { font-size: 10.5px; font-weight: 700; color: var(--rotulo); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 3px; }
+.linha-ligar { display: flex; align-items: flex-start; gap: 6px; cursor: pointer; font-size: 13px; }
+.linha-ligar input { margin-top: 3px; flex: 0 0 auto; }
