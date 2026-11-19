@@ -275,6 +275,16 @@ export async function registrarEventoApac(evento) {
   return ok(await sb.from('apac_eventos').insert({ ...evento, criado_por_nome: p.nome || p.email || '' }).select('id').single());
 }
 export async function excluirEventoApac(id) { ok(await sb.from('apac_eventos').delete().eq('id', id)); }
+/** Guarda o PDF comprovante de um evento (ex.: folha da devolução digitalizada). Devolve o caminho. */
+export async function anexarComprovanteEvento(eventoId, bytes) {
+  const u = sessao.unidade || {};
+  const agora = new Date();
+  const caminho = u.id + '/devolucoes/' + agora.getFullYear() + '/' + String(agora.getMonth() + 1).padStart(2, '0') +
+    '/evento_' + eventoId + '_' + agora.getTime() + '.pdf';
+  await substituirArquivo('apacs', caminho, bytes, 'application/pdf');
+  ok(await sb.from('apac_eventos').update({ anexo_path: caminho }).eq('id', eventoId));
+  return caminho;
+}
 /** Grava vários eventos de uma vez: [{ apac_id, data, tipo, descricao }] */
 export async function registrarEventosApac(lista) {
   if (!lista.length) return [];

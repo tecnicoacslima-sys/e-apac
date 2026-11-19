@@ -172,9 +172,21 @@ function cartaoApac(a, eventos, veioDe, todas, recarregar) {
       icone: t.icone, cor: t.cor, data: isoParaBR(e.data), titulo: t.rotulo, texto: e.descricao,
       ligadas: ligadas.map((x) => h('a', { href: '#', onclick: (ev) => { ev.preventDefault(); irPara(x.id); } }, '→ ' + nomeCurto(x))),
       rodape: 'Registrado' + (e.criado_por_nome ? ' por ' + e.criado_por_nome : '') + ' em ' + dataHoraBR(e.criado_em),
-      acoes: [h('button', { class: 'btn link pequeno perigo-texto', title: 'Apagar este registro (lançado errado)', onclick: async () => {
-        if (!await confirmar('Apagar registro', 'Apagar o registro <b>' + esc(t.rotulo) + '</b> de ' + esc(isoParaBR(e.data)) + '?', { sim: 'Apagar', perigo: true })) return;
-        try { await dados.excluirEventoApac(e.id); toast('Registro apagado.', '🗑️ Pronto'); recarregar(); }
+      acoes: [
+        e.anexo_path
+          ? h('button', { class: 'btn link pequeno', title: 'Abrir a folha digitalizada', onclick: async () => {
+              try { window.open(await dados.linkTemporario('apacs', e.anexo_path, 600), '_blank'); }
+              catch (err) { toast(err.message, '❌ Erro', 'erro'); }
+            } }, '📄 ver comprovante')
+          : h('button', { class: 'btn link pequeno', title: 'Anexar a folha digitalizada (PDF ou foto)', onclick: () => anexarDepois(e, t, recarregar) }, '📎 anexar comprovante'),
+        h('button', { class: 'btn link pequeno perigo-texto', title: 'Apagar este registro (lançado errado)', onclick: async () => {
+        if (!await confirmar('Apagar registro', 'Apagar o registro <b>' + esc(t.rotulo) + '</b> de ' + esc(isoParaBR(e.data)) + '?' +
+          (e.anexo_path ? '<br>O comprovante anexado também será apagado.' : ''), { sim: 'Apagar', perigo: true })) return;
+        try {
+          await dados.excluirEventoApac(e.id);
+          if (e.anexo_path) await dados.removerArquivo('apacs', e.anexo_path);
+          toast('Registro apagado.', '🗑️ Pronto'); recarregar();
+        }
         catch (err) { toast(err.message, '❌ Erro', 'erro'); }
       } }, '🗑️ apagar')]
     }));
@@ -234,6 +246,7 @@ function registrarEvento(a, todas, aoSalvar) {
   const descricao = h('textarea', { rows: 4, maxlength: 1000, style: { width: '100%' },
     placeholder: 'Ex.: devolvida pelo Controle e Avaliação — desmembrar tomografia de abdômen total em 2 encaminhamentos: abdômen superior + abdômen total.' });
 
+  const anexo = campoAnexo();
   const outras = todas.filter((x) => x.id !== a.id && !x.cancelada_em);
   const marcas = outras.map((x) => ({ id: x.id, caixa: h('input', { type: 'checkbox' }) }));
   const blocoLigar = h('div', { style: { marginTop: '10px' } },
@@ -255,6 +268,7 @@ function registrarEvento(a, todas, aoSalvar) {
         h('div', { class: 'campo' }, h('label', null, 'Data'), data),
         h('div', { class: 'campo', style: { flex: '1' } }, h('label', null, 'O que aconteceu'), tipo)),
       h('div', { class: 'campo', style: { marginTop: '10px' } }, h('label', null, 'Motivo / descrição'), descricao),
+      anexo.el,
       blocoLigar),
     botoes: [
       { texto: 'Cancelar' },
@@ -267,16 +281,153 @@ function registrarEvento(a, todas, aoSalvar) {
           toast('Escreva o motivo da ' + (t.chave === 'devolvida' ? 'devolução' : 'negativa') + '.', 'Atenção', 'aviso'); descricao.focus(); return;
         }
         const botao = janela.el.querySelector('.modal-rodape .principal');
+        // prepara o comprovante antes de gravar: se o arquivo tiver problema, nada é gravado
+        let bytesAnexo = null;
+        try { bytesAnexo = await anexo.obterBytes(); }
+        catch (e) { toast(e.message, '📎 Comprovante', 'aviso', 8); return; }
+        let semAnexo = '';
         try {
-          await comCarregando(botao, 'Salvando…', () => dados.registrarEventoApac({
-            apac_id: a.id, data: iso, tipo: t.chave, descricao: descricao.value.trim(), apacs_relacionadas: ligadas
-          }));
+          await comCarregando(botao, 'Salvando…', async () => {
+            const reg = await dados.registrarEventoApac({
+              apac_id: a.id, data: iso, tipo: t.chave, descricao: descricao.value.trim(), apacs_relacionadas: ligadas
+            });
+            if (bytesAnexo) {
+              try { await dados.anexarComprovanteEvento(reg.id, bytesAnexo); }
+              catch (e) { semAnexo = e.message; }
+            }
+          });
           fechar();
-          toast(t.rotulo + ' · ' + data.value, '✅ Registrado');
+          if (semAnexo) toast('O evento foi gravado, mas o comprovante não subiu (' + semAnexo + '). Use "📎 anexar comprovante" na linha do tempo.', '⚠️ Atenção', 'aviso', 10);
+          else toast(t.rotulo + ' · ' + data.value + (bytesAnexo ? ' · com comprovante' : ''), '✅ Registrado');
           aoSalvar();
         } catch (e) { toast(e.message, '❌ Não salvou', 'erro'); }
       } }
     ]
   });
   setTimeout(() => tipo.focus(), 50);
+}
+
+// ============================================================
+// 📎 COMPROVANTE (folha da devolução digitalizada)
+// ============================================================
+const LIMITE_ANEXO = 9.5 * 1048576; // o depósito aceita até 10 MB
+
+/** "3" · "3-4" · "1, 3, 5-6" → índices (começando em 0). Vazio → todas. */
+function lerPaginas(texto, total) {
+  const t = String(texto || '').trim();
+  if (!t) return [...Array(total).keys()];
+  const lista = [];
+  for (const parte of t.split(/[,;\s]+/).filter(Boolean)) {
+    const m = parte.match(/^(\d+)(?:-(\d+))?$/);
+    if (!m) throw new Error('Páginas: use números como 3, 3-4 ou 1,3.');
+    const ini = parseInt(m[1], 10), fim = parseInt(m[2] || m[1], 10);
+    if (ini < 1 || fim > total || ini > fim) throw new Error('Páginas: o PDF tem ' + total + ' página(s).');
+    for (let i = ini; i <= fim; i++) lista.push(i - 1);
+  }
+  return lista;
+}
+
+/** Foto (JPG/PNG) → JPEG reduzido (até 2200 px no lado maior). */
+async function fotoReduzida(arquivo) {
+  const url = URL.createObjectURL(arquivo);
+  try {
+    const img = await new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => erro(new Error('Não consegui abrir a imagem.')); i.src = url; });
+    const esc = Math.min(1, 2200 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * esc); c.height = Math.round(img.naturalHeight * esc);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.85));
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), w: c.width, h: c.height };
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/** Arquivo escolhido → PDF pronto para guardar (só as páginas pedidas, ou a foto numa folha A4). */
+async function arquivoParaPdf(arquivo, paginasTexto) {
+  const { PDFDocument } = window.PDFLib;
+  const ehPdf = arquivo.type === 'application/pdf' || /\.pdf$/i.test(arquivo.name);
+  let bytes;
+  if (ehPdf) {
+    const orig = await PDFDocument.load(await arquivo.arrayBuffer(), { ignoreEncryption: true });
+    const idx = lerPaginas(paginasTexto, orig.getPageCount());
+    if (idx.length === orig.getPageCount()) bytes = new Uint8Array(await arquivo.arrayBuffer());
+    else {
+      const novo = await PDFDocument.create();
+      (await novo.copyPages(orig, idx)).forEach((p) => novo.addPage(p));
+      bytes = await novo.save();
+    }
+  } else if (/^image\/(jpeg|png)$/.test(arquivo.type) || /\.(jpe?g|png)$/i.test(arquivo.name)) {
+    const foto = await fotoReduzida(arquivo);
+    const doc = await PDFDocument.create();
+    const deitada = foto.w > foto.h;
+    const [W, H] = deitada ? [842, 595] : [595, 842];
+    const pag = doc.addPage([W, H]);
+    const img = await doc.embedJpg(foto.bytes);
+    const k = Math.min((W - 40) / foto.w, (H - 40) / foto.h);
+    pag.drawImage(img, { x: (W - foto.w * k) / 2, y: (H - foto.h * k) / 2, width: foto.w * k, height: foto.h * k });
+    bytes = await doc.save();
+  } else throw new Error('Use um PDF ou uma foto (JPG/PNG).');
+  if (bytes.length > LIMITE_ANEXO) throw new Error('O comprovante ficou com ' + (bytes.length / 1048576).toFixed(1) + ' MB (máximo 9,5 MB). Escolha só a página da devolução.');
+  return bytes;
+}
+
+/** Campo "📎 Comprovante": arquivo + páginas (aparece quando o PDF tem mais de uma). */
+function campoAnexo() {
+  const arquivo = h('input', { type: 'file', accept: 'application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png' });
+  const paginas = h('input', { type: 'text', placeholder: 'ex.: 3 ou 3-4', style: { width: '130px' } });
+  const info = h('span', { class: 'mudo pequeno' });
+  const blocoPaginas = h('div', { class: 'campo', style: { display: 'none' } }, h('label', null, 'Páginas do PDF'), paginas);
+  arquivo.addEventListener('change', async () => {
+    info.textContent = '';
+    blocoPaginas.style.display = 'none';
+    paginas.value = '';
+    const f = arquivo.files[0];
+    if (!f || !(f.type === 'application/pdf' || /\.pdf$/i.test(f.name))) return;
+    try {
+      const doc = await window.PDFLib.PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
+      const n = doc.getPageCount();
+      if (n > 1) {
+        blocoPaginas.style.display = '';
+        info.textContent = 'Este PDF tem ' + n + ' páginas — informe só a(s) da devolução (vazio = todas).';
+        paginas.focus();
+      }
+    } catch (e) { info.textContent = 'Não consegui ler este PDF.'; }
+  });
+  const el = h('div', { style: { marginTop: '10px' } },
+    h('div', { class: 'filtros', style: { alignItems: 'flex-end' } },
+      h('div', { class: 'campo', style: { flex: '1' } }, h('label', null, '📎 Comprovante (opcional) — folha digitalizada, PDF ou foto'), arquivo),
+      blocoPaginas),
+    info);
+  return {
+    el,
+    obterBytes: async () => (arquivo.files[0] ? arquivoParaPdf(arquivo.files[0], paginas.value) : null)
+  };
+}
+
+/** Anexar a folha num evento que já foi registrado. */
+function anexarDepois(e, t, recarregar) {
+  const anexo = campoAnexo();
+  const janela = modal({
+    titulo: '📎 Anexar comprovante',
+    largura: 560,
+    conteudo: h('div', null,
+      h('p', { style: { marginTop: 0 } }, h('b', null, t.icone + ' ' + t.rotulo), ' · ' + isoParaBR(e.data)),
+      anexo.el),
+    botoes: [
+      { texto: 'Cancelar' },
+      { texto: 'Anexar', classe: 'principal', acao: async (fechar) => {
+        let bytes;
+        try { bytes = await anexo.obterBytes(); } catch (err) { toast(err.message, '📎 Comprovante', 'aviso', 8); return; }
+        if (!bytes) { toast('Escolha o arquivo (PDF ou foto).', '📎 Comprovante', 'aviso'); return; }
+        const botao = janela.el.querySelector('.modal-rodape .principal');
+        try {
+          await comCarregando(botao, 'Enviando…', () => dados.anexarComprovanteEvento(e.id, bytes));
+          fechar();
+          toast('Comprovante anexado.', '📎 Pronto');
+          recarregar();
+        } catch (err) { toast(err.message, '❌ Não anexou', 'erro'); }
+      } }
+    ]
+  });
 }
