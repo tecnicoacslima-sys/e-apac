@@ -429,6 +429,72 @@ async function imprimirProtocolo() {
     '<div class="rod">' + sel.length + ' APAC(s) · impresso em ' + esc(dataHoraBR()) + '</div>' +
     '<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>');
   janela.document.close();
+
+  // 📤 lança "Enviada ao Controle e Avaliação" (ou "Corrigida / reenviada") no prontuário de cada APAC impressa
+  registrarEnvioNoProntuario(sel);
+}
+
+/** Nome sem acento, maiúsculo e com espaços simples — para comparar paciente do protocolo com o da APAC. */
+function normNome(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Acha a APAC gerada que corresponde à linha do protocolo:
+ *  1º mesma assinatura do formulário; 2º o apac_id gravado no ④; 3º mesmo paciente + código
+ *  (a mais recente gerada até o momento em que a linha foi salva).
+ * Sempre exige mesmo paciente e mesmo código — assim um apac_id antigo, que ficou no formulário, não engana.
+ */
+function acharApac(l, apacs, usadas) {
+  const nome = normNome(l.nome_paciente);
+  const cand = apacs.filter((a) => a.proc_codigo === l.codigo && normNome(a.paciente_nome) === nome && !usadas.has(a.id));
+  if (!cand.length) return null;
+  return (l.assinatura && cand.find((a) => a.assinatura === l.assinatura)) ||
+         (l.apac_id && cand.find((a) => a.id === l.apac_id)) ||
+         cand.find((a) => String(a.criado_em) <= String(l.criado_em || '9999')) ||
+         cand[0];
+}
+
+async function registrarEnvioNoProntuario(sel) {
+  try {
+    const hojeIso = brParaISO(hojeBR());
+    const apacs = await dados.apacsPorCodigos(sel.map((l) => l.codigo));
+    const usadas = new Set();
+    const achadas = [];
+    const semApac = [];
+    sel.forEach((l) => {
+      const a = acharApac(l, apacs, usadas);
+      if (a) { usadas.add(a.id); achadas.push(a); } else semApac.push(l.nome_paciente);
+    });
+
+    const porApac = new Map(achadas.map((a) => [a.id, []]));
+    if (achadas.length) {
+      (await dados.eventosDasApacs(achadas.map((a) => a.id))).forEach((e) => { if (porApac.has(e.apac_id)) porApac.get(e.apac_id).push(e); });
+    }
+
+    const novos = [];
+    let jaTinha = 0;
+    achadas.forEach((a) => {
+      const evs = porApac.get(a.id);
+      // impressão repetida no mesmo dia: não lança de novo
+      if (evs.some((e) => (e.tipo === 'enviada' || e.tipo === 'reenviada') && e.data === hojeIso)) { jaTinha++; return; }
+      const validos = evs.filter((e) => e.tipo !== 'observacao');
+      const ult = validos[validos.length - 1];
+      const tipo = ult && (ult.tipo === 'devolvida' || ult.tipo === 'negada') ? 'reenviada' : 'enviada';
+      novos.push({ apac_id: a.id, data: hojeIso, tipo, descricao: 'Lançado automaticamente ao imprimir o protocolo (' + sel.length + ' APAC(s)).' });
+    });
+
+    await dados.registrarEventosApac(novos);
+
+    const partes = [];
+    if (novos.length) partes.push(novos.length + ' APAC(s) marcada(s) como enviada(s) em ' + hojeBR() + '.');
+    if (jaTinha) partes.push(jaTinha + ' já tinha(m) o envio de hoje.');
+    if (semApac.length) partes.push(semApac.length + ' sem APAC gerada no sistema (sem prontuário): ' +
+      semApac.slice(0, 3).join(', ') + (semApac.length > 3 ? '…' : '') + '.');
+    toast(partes.join(' '), '📤 Prontuário', semApac.length ? 'aviso' : 'ok', 8);
+  } catch (e) {
+    toast('O protocolo saiu, mas não consegui lançar o envio no prontuário: ' + e.message, '❌ Prontuário', 'erro', 10);
+  }
 }
 
 function exportarCsv() {

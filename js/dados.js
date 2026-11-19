@@ -275,6 +275,25 @@ export async function registrarEventoApac(evento) {
   return ok(await sb.from('apac_eventos').insert({ ...evento, criado_por_nome: p.nome || p.email || '' }).select('id').single());
 }
 export async function excluirEventoApac(id) { ok(await sb.from('apac_eventos').delete().eq('id', id)); }
+/** Grava vários eventos de uma vez: [{ apac_id, data, tipo, descricao }] */
+export async function registrarEventosApac(lista) {
+  if (!lista.length) return [];
+  const p = sessao.perfil || {};
+  const nome = p.nome || p.email || '';
+  return ok(await sb.from('apac_eventos').insert(lista.map((e) => ({ apacs_relacionadas: [], ...e, criado_por_nome: nome }))).select('id')) || [];
+}
+/** APACs (não canceladas) com os códigos SIGTAP pedidos — para achar a APAC de cada linha do protocolo. */
+export async function apacsPorCodigos(codigos) {
+  const lista = [];
+  const cods = [...new Set(codigos.filter(Boolean))];
+  for (let i = 0; i < cods.length; i += 100) {
+    const parte = ok(await sb.from('apacs').select('id, paciente_nome, paciente_cns, proc_codigo, assinatura, criado_em')
+      .in('proc_codigo', cods.slice(i, i + 100)).is('cancelada_em', null)
+      .order('criado_em', { ascending: false }).limit(3000));
+    lista.push(...(parte || []));
+  }
+  return lista;
+}
 
 // ---------------- CONFERÊNCIAS ----------------
 /** Grava uma conferência. Devolve { id, criado_em }. */
