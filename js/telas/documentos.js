@@ -389,24 +389,40 @@ export async function montar(area) {
     aviso('info', 'Os arquivos voltarão a ir para a pasta Downloads.');
   });
 
-  const salvar = async (blob, ext) => {
+  /**
+   * Pede a permissão da pasta LOGO NO CLIQUE, antes de montar o PDF.
+   * O Chrome só mostra o pedido enquanto o clique é "recente"; se o PDF
+   * demorar, ele recusa e o arquivo acabava indo para Downloads.
+   */
+  const liberarPasta = async () => {
+    if (!pasta) return { ok: false };
+    try {
+      let perm = await pasta.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') perm = await pasta.requestPermission({ mode: 'readwrite' });
+      return perm === 'granted' ? { ok: true } : { ok: false, motivo: 'permissão negada' };
+    } catch (e) {
+      console.error(e);
+      return { ok: false, motivo: e.message || e.name };
+    }
+  };
+
+  const salvar = async (blob, ext, liberacao) => {
     const base = nomeBase();
     const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     if (pasta) {
       try {
-        let perm = await pasta.queryPermission({ mode: 'readwrite' });
-        if (perm !== 'granted') perm = await pasta.requestPermission({ mode: 'readwrite' });
-        if (perm === 'granted') {
+        if (liberacao.ok) {
           const n = await nomeLivre(pasta, base, ext);
           const w = await (await pasta.getFileHandle(n, { create: true })).createWritable();
           await w.write(blob); await w.close();
           aviso('ok', '✔ Salvo às ' + hora + ' em ' + pasta.name + ':\n' + n);
           return;
         }
-        aviso('aviso', 'Sem permissão para a pasta ' + pasta.name + '. O arquivo foi para Downloads.');
+        aviso('aviso', 'Sem permissão para a pasta ' + pasta.name + ' (' + liberacao.motivo + '). O arquivo foi para Downloads.\n' +
+          'Na próxima vez, quando o Chrome perguntar, clique em "Permitir" (ou "Permitir em todas as visitas").');
       } catch (e) {
         console.error(e);
-        aviso('aviso', 'Não consegui salvar em ' + pasta.name + ' (' + e.message + '). O arquivo foi para Downloads.');
+        aviso('aviso', 'Não consegui salvar em ' + pasta.name + ' (' + (e.message || e.name) + '). O arquivo foi para Downloads.');
       }
     } else {
       aviso('ok', '✔ Baixado às ' + hora + ' na pasta Downloads:\n' + base + ext);
@@ -509,11 +525,12 @@ export async function montar(area) {
   botaoPdf.addEventListener('click', async () => {
     if (!itens.length || salvando) return;
     salvando = true; botaoPdf.disabled = true; botaoPdf.textContent = 'Salvando…';
+    const liberacao = await liberarPasta(); // primeiro a permissão, enquanto o clique vale
     aviso('info', 'Salvando…');
     try {
       const folhas = posicoes(itens, Number(porFolha.value), Number(tamanho.value));
       const bytes = await montarPdf(folhas, nomeBase());
-      await salvar(new Blob([bytes], { type: 'application/pdf' }), '.pdf');
+      await salvar(new Blob([bytes], { type: 'application/pdf' }), '.pdf', liberacao);
     } catch (e) {
       console.error(e);
       aviso('erro', 'Erro ao montar o PDF: ' + e.message);
