@@ -1,6 +1,6 @@
 {
- "versao": "20261119T0840",
- "gerado": "2026-11-19T12:40:00.000Z",
+ "versao": "20261123T1600",
+ "gerado": "2026-11-23T20:00:00.000Z",
  "arquivos": [
   "config.js",
   "css/app.css",
@@ -37,6 +37,7 @@
   "js/telas/cadastros.js",
   "js/telas/conferencia.js",
   "js/telas/declaracao.js",
+  "js/telas/documentos.js",
   "js/telas/ecg.js",
   "js/telas/exemplos.js",
   "js/telas/ferramentas.js",
