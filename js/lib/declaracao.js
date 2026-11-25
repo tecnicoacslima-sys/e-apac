@@ -77,56 +77,96 @@ const up = (s) => String(s || '').trim().toUpperCase();
 const campo = (v, rotulo) => v ? esc(v) : '<span class="falta">[' + esc(rotulo) + ']</span>';
 
 /**
+ * Divergências da declaração. Aceita a lista nova (d.divs) ou o formato antigo
+ * de uma divergência só (d.tipo, d.fonteB, d.nomeCert, d.nomeB, d.local).
+ * Cada item: { tipo: 'nome'|'mae', fonteB: 'cpf'|'celk', nomeCert, nomeB, local: 'receita'|'cartorio' }
+ */
+export function divergenciasDe(d) {
+  const bruto = Array.isArray(d.divs) ? d.divs
+    : [{ tipo: d.tipo, fonteB: d.fonteB, nomeCert: d.nomeCert, nomeB: d.nomeB, local: d.local }];
+  const lista = bruto.filter(Boolean).map((x) => ({
+    tipo: x.tipo === 'mae' ? 'mae' : 'nome',
+    fonteB: FONTES_B[x.fonteB] ? x.fonteB : 'cpf',
+    nomeCert: x.nomeCert, nomeB: x.nomeB,
+    local: x.local === 'cartorio' ? 'cartorio' : 'receita'
+  }));
+  // o nome do paciente vem antes do nome da mãe; uma de cada
+  const vistos = new Set();
+  return lista.sort((a, b) => (a.tipo === 'mae') - (b.tipo === 'mae')).filter((x) => !vistos.has(x.tipo) && vistos.add(x.tipo));
+}
+
+/**
  * d = { unidade, municipio, uf, menor, sexo, nome, rg, cpf, parentesco, paciente, faixa, sexoPac,
- *       tipo ('nome'|'mae'), fonteB ('cpf'|'celk'), nomeCert, nomeB, local ('receita'|'cartorio'),
+ *       divs: [{ tipo, fonteB, nomeCert, nomeB, local }, ...] (ou o formato antigo de uma só),
  *       cartorio, proc, dataEnc, dataDecl, nomeAssin }
  * Devolve { p1, p2, data, assinatura, titulo } — p1/p2/assinatura em HTML.
  */
 export function montarDeclaracao(d) {
   const menor = !!d.menor;
   const fem = d.sexo === 'F';
-  const tipo = d.tipo === 'mae' ? 'mae' : 'nome';
   const adol = d.faixa === 'adolescente';
   const pacFem = d.sexoPac === 'F';
-  const fonteB = FONTES_B[d.fonteB] ? d.fonteB : 'cpf';
   const nome = up(d.nome), rg = up(d.rg), cpf = String(d.cpf || '').trim();
   const paciente = up(d.paciente), parentesco = String(d.parentesco || '').trim().toLowerCase();
-  const nB = up(d.nomeB), nCert = up(d.nomeCert), proc = up(d.proc);
+  const proc = up(d.proc);
   const artPac = adol ? (pacFem ? 'da adolescente' : 'do adolescente') : 'da criança';
+  let divs = divergenciasDe(d);
+  if (!divs.length) divs = divergenciasDe({ tipo: 'nome' });
 
-  let alvo, alvoCurto, docs;
-  const ondeB = FONTES_B[fonteB].texto;
-  if (!menor) {
-    alvo = tipo === 'mae' ? 'no nome da minha mãe' : 'no meu nome';
-    alvoCurto = tipo === 'mae' ? 'do nome da minha mãe' : 'do meu nome';
-    docs = 'que no meu RG/certidão de nascimento consta como ' + campo(nCert, 'nome no RG/certidão') +
-      ' e no meu ' + ondeB + ' consta como ' + campo(nB, 'nome no ' + FONTES_B[fonteB].rotulo);
-  } else {
-    alvo = tipo === 'mae' ? 'no nome da mãe ' + artPac : 'no nome ' + artPac;
-    alvoCurto = tipo === 'mae' ? 'do nome da mãe ' + artPac : 'do nome ' + artPac;
-    docs = 'que na certidão de nascimento consta como ' + campo(nCert, 'nome na certidão') +
-      ' e no ' + ondeB + ' consta como ' + campo(nB, 'nome no ' + FONTES_B[fonteB].rotulo);
-  }
+  // "no meu nome, que no meu RG/certidão consta como X e no meu CPF consta como Y"
+  const descrever = (x) => {
+    const ondeB = FONTES_B[x.fonteB].texto, rotB = FONTES_B[x.fonteB].rotulo;
+    const nCert = up(x.nomeCert), nB = up(x.nomeB);
+    const mae = x.tipo === 'mae';
+    if (!menor) {
+      return (mae ? 'no nome da minha mãe' : 'no meu nome') +
+        ', que no meu RG/certidão consta como ' + campo(nCert, (mae ? 'nome da mãe' : 'nome') + ' no RG/certidão') +
+        ' e no meu ' + ondeB + ' consta como ' + campo(nB, (mae ? 'nome da mãe' : 'nome') + ' no ' + rotB);
+    }
+    return (mae ? 'no nome da mãe ' + artPac : 'no nome ' + artPac) +
+      ', que na certidão de nascimento consta como ' + campo(nCert, (mae ? 'nome da mãe' : 'nome') + ' na certidão') +
+      ' e no ' + ondeB + ' consta como ' + campo(nB, (mae ? 'nome da mãe' : 'nome') + ' no ' + rotB);
+  };
 
   const munido = fem ? 'munida' : 'munido';
   const municipio = String(d.municipio || '').trim();
   const local = municipio ? municipio + (d.uf ? ' – ' + up(d.uf) : '') : '';
-  let destino;
-  if (d.local === 'cartorio') {
-    destino = 'ao ' + campo(up(d.cartorio), 'nome do cartório') + ', ' + munido +
-      ' de documento oficial com foto' + (menor ? '' : ', CPF') + ' e comprovante de residência' +
-      (menor ? ', além da certidão de nascimento e do CPF ' + artPac : '');
-  } else {
-    destino = 'ao Ponto de Atendimento Virtual da Receita Federal' +
+  const destino = (onde, temMae) => {
+    if (onde === 'cartorio') {
+      return 'ao ' + campo(up(d.cartorio), 'nome do cartório') + ', ' + munido +
+        ' de documento oficial com foto' + (menor ? '' : ', CPF') + ' e comprovante de residência' +
+        (menor ? ', além da certidão de nascimento e do CPF ' + artPac : '');
+    }
+    return 'ao Ponto de Atendimento Virtual da Receita Federal' +
       (local ? ', junto ao Setor de Tributação da Prefeitura de ' + esc(local) : '') + ', ' + munido +
-      ' de documento oficial com foto, título de eleitor, certidão de nascimento ou casamento' + (tipo === 'mae' ? ' atualizada' : '') +
+      ' de documento oficial com foto, título de eleitor, certidão de nascimento ou casamento' + (temMae ? ' atualizada' : '') +
       ' e comprovante de residência' + (menor ? ', além da certidão de nascimento ' + artPac : '');
-  }
+  };
+
+  // agrupa por lugar (Receita / cartório), na ordem em que aparecem
+  const grupos = [];
+  divs.forEach((x) => {
+    let g = grupos.find((k) => k.local === x.local);
+    if (!g) grupos.push(g = { local: x.local, itens: [] });
+    g.itens.push(x);
+  });
+  const trechos = grupos.map((g) => {
+    const dest = destino(g.local, g.itens.some((x) => x.tipo === 'mae'));
+    const regularizar = g.itens.length === 1
+      ? 'para regularizar a divergência ' + descrever(g.itens[0])
+      : 'para regularizar as seguintes divergências: ' + g.itens.map(descrever).join('; e ');
+    return dest + ', ' + regularizar;
+  });
 
   let p1 = 'EU, ' + campo(nome, 'nome completo') + ', ' + (fem ? 'portadora' : 'portador') +
     ' do RG/CNH nº ' + campo(rg, 'RG') + ' e do CPF nº ' + campo(cpf, 'CPF') + ', ';
   if (menor) p1 += (parentesco ? esc(parentesco) + ' e ' : '') + 'responsável legal de ' + campo(paciente, 'nome do paciente') + ', ';
-  p1 += 'declaro estar ciente de que preciso comparecer ' + destino + ', para regularizar a divergência ' + alvo + ', ' + docs + '.';
+  p1 += 'declaro estar ciente de que preciso comparecer ' + trechos.join('; e ') + '.';
+
+  const temNome = divs.some((x) => x.tipo === 'nome'), temMae = divs.some((x) => x.tipo === 'mae');
+  const curtoNome = menor ? 'do nome ' + artPac : 'do meu nome';
+  const curtoMae = menor ? 'do nome da mãe ' + artPac : 'do nome da minha mãe';
+  const alvoCurto = temNome && temMae ? curtoNome + ' e ' + curtoMae : (temMae ? curtoMae : curtoNome);
 
   const p2 = 'Declaro ainda estar ciente de que esta declaração tem validade apenas para este encaminhamento de APAC – ' +
     campo(proc, 'procedimento') + ', emitido em ' + campo(dataCurta(d.dataEnc), 'data do encaminhamento') +
@@ -193,10 +233,12 @@ export function sugestaoDaConferencia(conf, hoje = new Date()) {
   if (!conf || !Array.isArray(conf.campos)) return null;
   const cNome = acharCampo(conf, 'Nome Completo');
   const cMae = acharCampo(conf, 'Nome da Mãe');
-  let tipo = 'nome';
-  let div = divergenciaDoCampo(cNome);
-  if (!div) { div = divergenciaDoCampo(cMae); tipo = 'mae'; }
-  if (!div) return null;
+  const divs = [];
+  const dNome = divergenciaDoCampo(cNome), dMae = divergenciaDoCampo(cMae);
+  if (dNome) divs.push({ tipo: 'nome', ...dNome });
+  if (dMae) divs.push({ tipo: 'mae', ...dMae });
+  if (!divs.length) return null;
+  const tipo = divs[0].tipo;
 
   const primeiro = (c, ...chaves) => {
     if (!c) return '';
@@ -214,8 +256,8 @@ export function sugestaoDaConferencia(conf, hoje = new Date()) {
   const menor = idade !== null && idade < 18;
 
   const s = {
-    tipo, ...div, menor,
-    observacao: (tipo === 'mae' ? cMae : cNome).observacao || '',
+    tipo, ...divs[0], divs, menor,
+    observacao: divs.map((x) => (x.tipo === 'mae' ? cMae : cNome).observacao).filter(Boolean).join(' / '),
     origem: nomePaciente
   };
   if (menor) {

@@ -438,9 +438,10 @@ function mostrarResultado(conf, bytes) {
 function avisoDeclaracao(conf, aoAbrir) {
   const s = sugestaoDaConferencia(conf);
   if (!s) return null;
-  const qual = s.tipo === 'mae' ? 'O nome da mãe' : 'O nome do paciente';
+  const dois = (s.divs || []).length > 1;
+  const qual = dois ? 'O nome do paciente e o nome da mãe não conferem' : (s.tipo === 'mae' ? 'O nome da mãe não confere' : 'O nome do paciente não confere');
   return h('div', { class: 'msg aviso', style: { display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' } },
-    h('span', { style: { flex: '1', minWidth: '220px' } }, '📝 ', h('b', null, qual + ' não confere entre os documentos.'),
+    h('span', { style: { flex: '1', minWidth: '220px' } }, '📝 ', h('b', null, qual + ' entre os documentos.'),
       ' Se o paciente precisar regularizar, gere a declaração de ciência já preenchida.'),
     h('button', { type: 'button', class: 'btn principal', onclick: () => {
       guardarPreenchimento(s);

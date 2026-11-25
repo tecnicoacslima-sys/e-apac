@@ -53,6 +53,11 @@ const ESTILO = ESTILO_FOLHA + `
 .decl-botoes .principal { flex: 1; }
 .decl-previa { background: #8A96A5; border-radius: var(--raio); padding: 16px; overflow: auto; display: flex; justify-content: center; }
 .decl-previa .decl-folha { box-shadow: 0 2px 10px rgba(0,0,0,.3); transform-origin: top center; }
+.decl-div { border: 1px solid var(--borda-card); border-radius: 6px; padding: 6px 10px; margin: 2px 0 8px; }
+.decl-div.ligada { border-color: var(--primaria); }
+.decl-div-titulo, .campo .decl-div-titulo { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; cursor: pointer; margin: 2px 0; text-transform: none; letter-spacing: 0; color: var(--texto); }
+.decl-div-titulo input { width: auto; min-height: 0; height: auto; margin: 0; flex: none; }
+.decl-div-corpo { margin-top: 6px; }
 .oculto { display: none !important; }
 @media (max-width: 1000px) { .decl-grade { grid-template-columns: 1fr; } }
 `;
@@ -129,8 +134,6 @@ export async function montar(area) {
     parentesco: entrada({ list: 'decl-parentescos', placeholder: 'ex.: mãe' }),
     paciente: entrada({ class: 'maiusc' }),
     faixa: h('select', null, h('option', { value: 'crianca' }, 'Criança (até 11 anos)'), h('option', { value: 'adolescente' }, 'Adolescente (12 a 17)')),
-    nomeB: entrada({ class: 'maiusc' }),
-    nomeCert: entrada({ class: 'maiusc' }),
     cartorio: entrada({ class: 'maiusc', list: 'decl-cartorios', value: ler('apac.decl.cartorioAtual', CARTORIOS_PADRAO[1]) }),
     proc: entrada({ class: 'maiusc', list: 'decl-procs', placeholder: 'ex.: CONSULTA COM PEDIATRA' }),
     dataEnc: h('input', { type: 'date', value: hojeISO() }),
@@ -146,8 +149,34 @@ export async function montar(area) {
       bloco('Faixa', f.faixa),
       h('div', { class: 'campo' }, h('label', null, 'Sexo do paciente'),
         h('div', { class: 'decl-opcoes' }, radio('d-sexoPac', 'F', 'F', true), radio('d-sexoPac', 'M', 'M')))));
-  const rotB = h('label', null, '');
-  const rotCert = h('label', null, '');
+  // ---------- divergências: nome do paciente e/ou nome da mãe ----------
+  const div = {};
+  const criarDiv = (tipo, marcadoInicial) => {
+    const x = {
+      tipo,
+      liga: h('input', { type: 'checkbox', defaultChecked: !!marcadoInicial }),
+      nomeCert: entrada({ class: 'maiusc' }),
+      nomeB: entrada({ class: 'maiusc' }),
+      rotCert: h('label', null, ''),
+      rotB: h('label', null, '')
+    };
+    x.corpo = h('div', { class: 'decl-div-corpo' },
+      h('div', { class: 'campo' }, x.rotCert, x.nomeCert),
+      h('div', { class: 'campo' }, h('label', null, 'Comparado com'),
+        h('div', { class: 'decl-opcoes' }, radio('d-fonteB-' + tipo, 'cpf', FONTES_B.cpf.rotulo, true), radio('d-fonteB-' + tipo, 'celk', FONTES_B.celk.rotulo))),
+      h('div', { class: 'campo' }, x.rotB, x.nomeB),
+      h('div', { class: 'decl-dica' }, 'Digite exatamente como aparece em cada documento, com o erro.'),
+      h('div', { class: 'campo' }, h('label', null, 'Onde deve regularizar?'),
+        h('div', { class: 'decl-opcoes' },
+          radio('d-local-' + tipo, 'receita', 'Receita Federal (o CPF está errado)', true),
+          radio('d-local-' + tipo, 'cartorio', 'Cartório (a certidão está errada)'))));
+    x.caixa = h('div', { class: 'decl-div' },
+      h('label', { class: 'decl-div-titulo' }, x.liga, ' ' + (tipo === 'mae' ? 'Nome da mãe está diferente' : 'Nome do paciente está diferente')),
+      x.corpo);
+    div[tipo] = x;
+    return x.caixa;
+  };
+  const avisoDiv = h('div', { class: 'decl-aviso' });
   const blocoCartorio = bloco('Nome do cartório', f.cartorio, 'oculto');
   const avisoConf = h('div');
 
@@ -171,18 +200,10 @@ export async function montar(area) {
         h('div', { class: 'decl-opcoes' }, radio('d-sexo', 'M', 'Masculino', true), radio('d-sexo', 'F', 'Feminino'))),
       blocoParentesco),
     blocoMenor,
-    h('fieldset', null, h('legend', null, '5. A divergência'),
-      h('div', { class: 'campo' }, h('label', null, 'O que está diferente?'),
-        h('div', { class: 'decl-opcoes' }, radio('d-tipo', 'nome', 'Nome do paciente', true), radio('d-tipo', 'mae', 'Nome da mãe'))),
-      h('div', { class: 'campo' }, rotCert, f.nomeCert),
-      h('div', { class: 'campo' }, h('label', null, 'Comparado com'),
-        h('div', { class: 'decl-opcoes' }, radio('d-fonteB', 'cpf', FONTES_B.cpf.rotulo, true), radio('d-fonteB', 'celk', FONTES_B.celk.rotulo))),
-      h('div', { class: 'campo' }, rotB, f.nomeB),
-      h('div', { class: 'decl-dica' }, 'Digite exatamente como aparece em cada documento, com o erro.'),
-      h('div', { class: 'campo' }, h('label', null, 'Onde deve regularizar?'),
-        h('div', { class: 'decl-opcoes' },
-          radio('d-local', 'receita', 'Receita Federal (o CPF está errado)', true),
-          radio('d-local', 'cartorio', 'Cartório (a certidão está errada)'))),
+    h('fieldset', null, h('legend', null, '5. A divergência (pode marcar as duas)'),
+      criarDiv('nome', true),
+      criarDiv('mae', false),
+      avisoDiv,
       blocoCartorio),
     h('fieldset', null, h('legend', null, '6. Encaminhamento (APAC)'),
       bloco('Procedimento', f.proc),
@@ -220,9 +241,12 @@ export async function montar(area) {
   const valores = () => ({
     municipio: u.municipio, uf: u.uf,
     menor: marcado('d-idade') === 'menor', sexo: marcado('d-sexo'), sexoPac: marcado('d-sexoPac'),
-    tipo: marcado('d-tipo'), fonteB: marcado('d-fonteB'), local: marcado('d-local'),
+    divs: ['nome', 'mae'].filter((t) => div[t].liga.checked).map((t) => ({
+      tipo: t, fonteB: marcado('d-fonteB-' + t), local: marcado('d-local-' + t),
+      nomeCert: div[t].nomeCert.value, nomeB: div[t].nomeB.value
+    })),
     nome: f.nome.value, rg: f.rg.value, cpf: f.cpf.value, parentesco: f.parentesco.value,
-    paciente: f.paciente.value, faixa: f.faixa.value, nomeB: f.nomeB.value, nomeCert: f.nomeCert.value,
+    paciente: f.paciente.value, faixa: f.faixa.value,
     cartorio: f.cartorio.value, proc: f.proc.value, dataEnc: f.dataEnc.value, dataDecl: f.dataDecl.value,
     nomeAssin: f.nomeAssin.checked
   });
@@ -240,11 +264,17 @@ export async function montar(area) {
     const v = valores();
     blocoMenor.classList.toggle('oculto', !v.menor);
     blocoParentesco.classList.toggle('oculto', !v.menor);
-    blocoCartorio.classList.toggle('oculto', v.local !== 'cartorio');
+    blocoCartorio.classList.toggle('oculto', !v.divs.some((x) => x.local === 'cartorio'));
     legDeclarante.textContent = v.menor ? '3. Dados do responsável legal (quem assina)' : '3. Dados do paciente (quem assina)';
-    const quem = v.tipo === 'mae' ? 'Nome da mãe' : 'Nome';
-    rotCert.textContent = quem + ' como está no RG / certidão de nascimento';
-    rotB.textContent = quem + ' como está no ' + FONTES_B[v.fonteB].rotulo;
+    ['nome', 'mae'].forEach((t) => {
+      const x = div[t];
+      x.corpo.classList.toggle('oculto', !x.liga.checked);
+      x.caixa.classList.toggle('ligada', x.liga.checked);
+      const quem = t === 'mae' ? 'Nome da mãe' : 'Nome do paciente';
+      x.rotCert.textContent = quem + (v.menor ? ' como está na certidão de nascimento' : ' como está no RG / certidão');
+      x.rotB.textContent = quem + ' como está no ' + FONTES_B[marcado('d-fonteB-' + t)].rotulo;
+    });
+    avisoDiv.textContent = v.divs.length ? '' : 'Marque pelo menos uma divergência (nome do paciente ou nome da mãe).';
     const cpfNum = v.cpf.replace(/\D/g, '');
     avisoCpf.textContent = cpfNum.length === 11 && !validarCPF(cpfNum) ? 'Atenção: este CPF parece ter um número errado.' : '';
 
@@ -295,16 +325,24 @@ export async function montar(area) {
   // ---------- veio da Conferência? ----------
   if (veio) {
     marcar('d-idade', veio.menor ? 'menor' : 'adulto');
-    marcar('d-tipo', veio.tipo);
-    marcar('d-fonteB', veio.fonteB);
-    marcar('d-local', veio.local);
+    const divsVeio = veio.divs || [{ tipo: veio.tipo, fonteB: veio.fonteB, local: veio.local, nomeCert: veio.nomeCert, nomeB: veio.nomeB }];
+    ['nome', 'mae'].forEach((t) => { div[t].liga.checked = false; });
+    divsVeio.forEach((x) => {
+      const t = x.tipo === 'mae' ? 'mae' : 'nome';
+      div[t].liga.checked = true;
+      if (x.fonteB) marcar('d-fonteB-' + t, x.fonteB);
+      if (x.local) marcar('d-local-' + t, x.local);
+      if (x.nomeCert) div[t].nomeCert.value = x.nomeCert;
+      if (x.nomeB) div[t].nomeB.value = x.nomeB;
+    });
     if (veio.sexo) marcar('d-sexo', veio.sexo);
     if (veio.sexoPac) marcar('d-sexoPac', veio.sexoPac);
-    ['nome', 'cpf', 'rg', 'parentesco', 'paciente', 'nomeB', 'nomeCert'].forEach((k) => { if (veio[k]) f[k].value = veio[k]; });
+    ['nome', 'cpf', 'rg', 'parentesco', 'paciente'].forEach((k) => { if (veio[k]) f[k].value = veio[k]; });
     if (veio.faixa) f.faixa.value = veio.faixa;
     avisoConf.appendChild(h('div', { class: 'msg aviso pequeno', style: { marginTop: 0 } },
       h('b', null, 'Preenchida pela Conferência de espelhos'), veio.origem ? ' (' + veio.origem + ')' : '', '. ',
       veio.observacao ? h('div', null, 'Obs. da conferência: ' + veio.observacao) : null,
+      divsVeio.length > 1 ? h('div', null, h('b', null, 'O nome do paciente e o nome da mãe divergem: os dois já estão na mesma declaração.')) : null,
       h('div', null, 'Confira qual documento está errado (Receita ou cartório)' +
         (veio.menor ? ', quem assina (sugeri a mãe) e o RG/CPF de quem assina.' : ' e o RG.'))));
   }
