@@ -20,6 +20,7 @@ import { matrizQr, novoCodigoVerificacao, urlVerificacao } from '../lib/qr.js';
 import { PROMPT_GMUS, interpretarRelatorioGmus, aplicarRelatorioGmus, mesmoPaciente, CAMPOS_FIXOS } from '../lib/relatorio-gmus.js';
 import { abrirBuscaSigtap } from './sigtap.js';
 import { abrirBuscaRegulacao, termoDoProcedimento } from './regulacao.js';
+import { avisoDoProcedimento, textoDoAviso } from '../lib/avisos-procedimento.js';
 
 const LIMITE_PDF_MB = 22;   // a IA aceita ~32 MB por pedido; o base64 aumenta ~33%
 
@@ -346,10 +347,26 @@ function aoMudarCampo(chave, valor) {
   else if (chave === 'cns_paciente') aoEditarCnsPaciente(v);
   else if (chave === 'cep') aoEditarCep(v);
   else if (chave === 'estab_solicitante') aprenderEstabelecimento();
+  else if (chave === 'proc_codigo') avisarProcedimento();
   if (['cnes_solicitante', 'estab_solicitante', 'esf_profissional', 'esf_doc_tipo', 'esf_doc_numero'].includes(chave)) {
     lembrarEscolha();
     sincronizarEscolhas();
   }
+}
+
+/**
+ * Regras dos fluxos da Secretaria para o procedimento principal
+ * (ex.: mamografia de rastreamento não vai por APAC). Só avisa uma vez por código.
+ */
+let ultimoAvisado = '';
+function avisarProcedimento() {
+  const cod = soDigitos(form.proc_codigo);
+  if (cod === ultimoAvisado) return;
+  ultimoAvisado = cod;
+  const a = avisoDoProcedimento(cod);
+  if (!a) return;
+  if (a.tipo === 'bloqueio') alerta(a.titulo, a.html);
+  else toast(textoDoAviso(a), a.titulo, 'aviso', 8);
 }
 
 // 1. CNES → nome da UBS
@@ -582,6 +599,7 @@ function usarProcedimento(item, onde) {
     gravar('proc_codigo', item.codigo);
     gravar('proc_nome', item.nome.toUpperCase());
     if (!String(form.proc_qtd || '').trim()) gravar('proc_qtd', '1');
+    avisarProcedimento();
   } else {
     let n = 1;
     while (n <= 5 && (form['sec' + n + '_codigo'] || form['sec' + n + '_nome'])) n++;
@@ -798,6 +816,7 @@ function mostrarResultadoLaudo(r, resultado, janela, zona) {
     atualizarResumo();
     salvarDepois();
     fechar();
+    avisarProcedimento();
     toast('Confira as seções Procedimento, Justificativa e Solicitação da APAC externa.', '✅ Formulário preenchido');
   };
 
@@ -978,6 +997,12 @@ async function passo3GerarPdf(botao, completo = false) {
     alerta('❌ Falta o paciente', 'Carregue um paciente antes de gerar a APAC.');
     return;
   }
+  const avisoProc = avisoDoProcedimento(form.proc_codigo);
+  if (avisoProc && avisoProc.tipo === 'bloqueio') {
+    const seguir = await confirmar(avisoProc.titulo, avisoProc.html + '<br><br>Gerar a APAC mesmo assim?',
+      { sim: 'Sim, gerar mesmo assim', nao: 'Não, vou corrigir' });
+    if (!seguir) return;
+  }
 
   await comCarregando(botao, 'Gerando…', async () => {
     const u = dados.sessao.unidade;
@@ -1105,6 +1130,7 @@ async function passo4Salvar(botao) {
 // ============================================================
 function passo5Limpar() {
   form = formularioVazio();
+  ultimoAvisado = '';
   aplicarEscolhaInicial(form);   // estabelecimento e profissional já vêm preenchidos
   preencherEntradas();
   atualizarResumo();

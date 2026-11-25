@@ -2,6 +2,9 @@
  * 📘 PROTOCOLOS DE REGULAÇÃO — busca nos critérios de encaminhamento
  *  • Protocolo de Regulação do Estado de Mato Grosso (SES-MT, 2011)
  *  • Protocolo de Regulação de Nova Mutum (Secretaria Municipal de Saúde, set/2025)
+ *  • Fluxos, formulários e protocolos avulsos da SMS Nova Mutum (fonte "sms":
+ *    fisioterapia domiciliar, bariátrica, laqueadura/vasectomia, pré-natal…).
+ *    Cada item "sms" tem o próprio PDF (campo "pdf"), em protocolos/sms/.
  * Digite o procedimento, a especialidade, a doença ou o código SIGTAP:
  * aparecem só os trechos certos, com os exames e dados que precisam ir junto.
  * Funciona como tela própria (#/regulacao) e como janela dentro da tela APAC.
@@ -12,7 +15,8 @@ import { esc } from '../lib/texto.js';
 
 const ENDERECO_BASE = new URL('../../dados/protocolos-regulacao.json', import.meta.url);
 const ENDERECO_RAIZ = new URL('../../', import.meta.url);
-const FONTES = { mutum: 'Nova Mutum', estado: 'Estado de MT' };
+const FONTES = { mutum: 'Nova Mutum', sms: 'Fluxos SMS', estado: 'Estado de MT' };
+const ORDEM_FONTE = { mutum: 0, sms: 1, estado: 2 };
 const LIMITE = 60;
 
 // palavras que não ajudam a achar (aparecem no nome do procedimento do SIGTAP)
@@ -86,7 +90,7 @@ function procurar(termo, { fonte = '', especialidade = '' } = {}) {
     }
     if (!achadas && digitos.length < 6) return 0;
     // um pouco à frente: o protocolo do município e os exames (quem pede APAC usa mais)
-    if (it.fonte === 'mutum') pontos += 0.5;
+    if (it.fonte === 'mutum' || it.fonte === 'sms') pontos += 0.5;
     return pontos;
   };
 
@@ -101,7 +105,7 @@ function procurar(termo, { fonte = '', especialidade = '' } = {}) {
 }
 
 function ordemNatural(a, b) {
-  return (a.fonte === b.fonte ? 0 : a.fonte === 'mutum' ? -1 : 1) || a.id - b.id;
+  return (ORDEM_FONTE[a.fonte] - ORDEM_FONTE[b.fonte]) || a.id - b.id;
 }
 
 // ------------------------------------------------------------
@@ -163,7 +167,7 @@ function textoEmHtml(texto, palavras) {
 
 function linkPdf(it) {
   const f = base.fontes[it.fonte];
-  return new URL(f.pdf, ENDERECO_RAIZ).href + '#page=' + it.pagina;
+  return new URL(it.pdf || f.pdf, ENDERECO_RAIZ).href + '#page=' + it.pagina;
 }
 
 function cartao(it, palavras, aberto) {
@@ -196,6 +200,7 @@ function estilos() {
 .reg-lista { display: flex; flex-direction: column; gap: 8px; }
 .reg-item { background: #fff; border: 1px solid var(--borda-card); border-left: 4px solid var(--primaria); border-radius: 8px; }
 .reg-item.reg-estado { border-left-color: var(--azul); }
+.reg-item.reg-sms { border-left-color: #B26A00; }
 .reg-item > summary { list-style: none; cursor: pointer; padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
 .reg-item > summary::-webkit-details-marker { display: none; }
 .reg-item > summary::before { content: '▸'; color: var(--suave); width: 10px; }
@@ -203,6 +208,7 @@ function estilos() {
 .reg-item[open] > summary { border-bottom: 1px solid var(--borda-card); background: var(--auto-fundo); border-radius: 8px 8px 0 0; }
 .reg-fonte { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 10px; background: var(--ok-fundo); color: var(--ok); white-space: nowrap; }
 .reg-estado .reg-fonte { background: #E6EFF8; color: #1F5A8F; }
+.reg-sms .reg-fonte { background: #FFF1DC; color: #8A5300; }
 .reg-titulo { font-weight: 700; font-size: 14.5px; flex: 1 1 260px; }
 .reg-onde { font-size: 12px; color: var(--rotulo); width: 100%; padding-left: 14px; }
 .reg-texto { padding: 6px 14px 2px 18px; font-size: 13.5px; line-height: 1.5; }
@@ -230,7 +236,7 @@ function montarBusca({ termoInicial = '', dentroDeJanela = false } = {}) {
     style: { width: '100%', padding: '10px 12px', border: '2px solid var(--primaria)', borderRadius: '6px', fontSize: '15px' } });
   let fonte = '';
   const botoesFonte = h('div', { class: 'reg-fontes', role: 'group', 'aria-label': 'Qual protocolo' });
-  [['', 'Os dois'], ['mutum', 'Nova Mutum'], ['estado', 'Estado de MT']].forEach(([v, rot]) => {
+  [['', 'Todos'], ['mutum', 'Nova Mutum'], ['sms', 'Fluxos SMS'], ['estado', 'Estado de MT']].forEach(([v, rot]) => {
     botoesFonte.appendChild(h('button', { type: 'button', class: v === '' ? 'ativa' : '', onclick: (e) => {
       fonte = v;
       botoesFonte.querySelectorAll('button').forEach((b) => b.classList.toggle('ativa', b === e.currentTarget));
@@ -267,10 +273,10 @@ function montarBusca({ termoInicial = '', dentroDeJanela = false } = {}) {
       base.itens.forEach((it) => { if ((!fonte || it.fonte === fonte) && it.grupo === 'Consulta especializada') contagem.set(it.especialidade, (contagem.get(it.especialidade) || 0) + 1); });
       [...contagem.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR')).forEach((n) =>
         grade.appendChild(h('button', { type: 'button', onclick: () => { especSel.value = n; desenhar(); } }, n + ' ', h('small', null, contagem.get(n)))));
-      ['Exames', 'Orientações gerais', 'Anexos'].forEach((n) => {
+      ['Fluxos e formulários', 'Exames', 'Orientações gerais', 'Anexos'].forEach((n) => {
         if (base.itens.some((it) => it.especialidade === n && (!fonte || it.fonte === fonte))) {
           grade.appendChild(h('button', { type: 'button', style: { fontWeight: '700' }, onclick: () => { especSel.value = n; desenhar(); } },
-            (n === 'Exames' ? '🩻 ' : n === 'Anexos' ? '📎 ' : 'ℹ️ ') + n));
+            (n === 'Exames' ? '🩻 ' : n === 'Anexos' ? '📎 ' : n === 'Fluxos e formulários' ? '🗂️ ' : 'ℹ️ ') + n));
         }
       });
       lista.appendChild(grade);
@@ -324,7 +330,7 @@ export async function montar(area) {
   area.append(
     h('div', { class: 'titulo-tela' },
       h('div', null, h('h1', null, '📘 Protocolos de regulação'),
-        h('p', null, 'Critérios de encaminhamento e exames exigidos: Protocolo de Nova Mutum (set/2025) e Protocolo do Estado de Mato Grosso (SES-MT, 2011).'))),
+        h('p', null, 'Critérios de encaminhamento e exames exigidos: Protocolo de Nova Mutum (set/2025), fluxos e formulários da SMS Nova Mutum e Protocolo do Estado de Mato Grosso (SES-MT, 2011).'))),
     h('div', { class: 'card' }, h('div', { class: 'card-conteudo' }, montarBusca())));
 }
 

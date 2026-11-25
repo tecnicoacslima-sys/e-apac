@@ -1,6 +1,6 @@
 {
- "versao": "20261125T0745",
- "gerado": "2026-11-25T11:45:00.000Z",
+ "versao": "20261125T1535",
+ "gerado": "2026-11-25T19:35:48.000Z",
  "arquivos": [
   "config.js",
   "css/app.css",
@@ -8,6 +8,7 @@
   "index.html",
   "js/app.js",
   "js/dados.js",
+  "js/lib/avisos-procedimento.js",
   "js/lib/comprimir-pdf.js",
   "js/lib/conferencia.js",
   "js/lib/copia.js",
@@ -16,6 +17,7 @@
   "js/lib/espelho-celk.js",
   "js/lib/fatura.js",
   "js/lib/formulario.js",
+  "js/lib/formularios-sms.js",
   "js/lib/importacao.js",
   "js/lib/juntar-pdf.js",
   "js/lib/pdf-apac.js",
@@ -41,6 +43,7 @@
   "js/telas/ecg.js",
   "js/telas/exemplos.js",
   "js/telas/ferramentas.js",
+  "js/telas/formularios.js",
   "js/telas/importar.js",
   "js/telas/juntar-pdf.js",
   "js/telas/pacientes.js",
