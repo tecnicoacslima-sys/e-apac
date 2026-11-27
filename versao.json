@@ -1,6 +1,6 @@
 {
- "versao": "20261125T1535",
- "gerado": "2026-11-25T19:35:48.000Z",
+ "versao": "20261127T1843",
+ "gerado": "2026-11-27T22:43:14.000Z",
  "arquivos": [
   "config.js",
   "css/app.css",
@@ -24,6 +24,7 @@
   "js/lib/pdf-conferencia.js",
   "js/lib/pdf-fatura.js",
   "js/lib/pdf-texto.js",
+  "js/lib/print-protocolo.js",
   "js/lib/qr.js",
   "js/lib/relatorio-gmus.js",
   "js/lib/sigtap-repo.js",

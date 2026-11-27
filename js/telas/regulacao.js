@@ -10,14 +10,21 @@
  * Funciona como tela própria (#/regulacao) e como janela dentro da tela APAC.
  * A base vem de dados/protocolos-regulacao.json (gerada a partir dos PDFs).
  */
-import { h, modal, toast, atrasar } from '../ui.js';
+import { h, modal, toast, atrasar, baixarPdf } from '../ui.js';
 import { esc } from '../lib/texto.js';
+import { gerarPrintProtocolo, canvasParaPng, pngParaPdf } from '../lib/print-protocolo.js';
 
 const ENDERECO_BASE = new URL('../../dados/protocolos-regulacao.json', import.meta.url);
 const ENDERECO_RAIZ = new URL('../../', import.meta.url);
 const FONTES = { mutum: 'Nova Mutum', sms: 'Fluxos SMS', estado: 'Estado de MT' };
 const ORDEM_FONTE = { mutum: 0, sms: 1, estado: 2 };
 const LIMITE = 60;
+// nome curto da fonte na legenda do print (o nº da página não pode ser cortado)
+const NOME_CURTO = {
+  mutum: 'Protocolo de Regulação de Nova Mutum (SMS, set/2025)',
+  estado: 'Protocolo de Regulação do Estado de Mato Grosso (SES-MT, 2011)',
+  sms: 'Secretaria Municipal de Saúde de Nova Mutum'
+};
 
 // palavras que não ajudam a achar (aparecem no nome do procedimento do SIGTAP)
 const PALAVRAS_VAZIAS = new Set(('a o as os e de da do das dos em no na nos nas para por com sem ou um uma ao aos ' +
@@ -165,9 +172,87 @@ function textoEmHtml(texto, palavras) {
   return marcarPalavras(html, palavras);
 }
 
-function linkPdf(it) {
+function urlPdf(it) {
   const f = base.fontes[it.fonte];
-  return new URL(it.pdf || f.pdf, ENDERECO_RAIZ).href + '#page=' + it.pagina;
+  return new URL(it.pdf || f.pdf, ENDERECO_RAIZ).href;
+}
+
+function linkPdf(it) {
+  return urlPdf(it) + '#page=' + it.pagina;
+}
+
+function nomeArquivo(it) {
+  const s = semAcento(it.titulo).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase().slice(0, 50);
+  return 'PROTOCOLO_' + (s || 'TRECHO') + '_PAG' + it.pagina;
+}
+
+/**
+ * 📸 Print do protocolo: recorta o trecho da página real do PDF.
+ * Já copia a imagem (Ctrl+V para colar) e abre uma janela com a prévia,
+ * para baixar em PNG ou em PDF (este junta fácil com a devolução no "Juntar PDF").
+ */
+function printDoProtocolo(it) {
+  const f = base.fontes[it.fonte];
+  const url = urlPdf(it);
+  const vizinhos = base.itens.filter((x) => urlPdf(x) === url);
+  const gerando = gerarPrintProtocolo({
+    item: it, vizinhos, url,
+    legenda: (pags) => 'Fonte: ' + (NOME_CURTO[it.fonte] || f.nome) + ' — pág. ' +
+      (pags.length > 1 ? pags[0] + '–' + pags[pags.length - 1] : pags[0])
+  });
+  const pngPromessa = gerando.then((r) => canvasParaPng(r.canvas));
+
+  // copiar precisa começar dentro do clique (o navegador exige); a imagem chega depois
+  let copia = null;
+  try {
+    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+      copia = navigator.clipboard.write([new ClipboardItem({ 'image/png': pngPromessa })]);
+      copia.catch(() => {});
+    }
+  } catch (e) { copia = null; /* segue: dá para baixar */ }
+
+  const status = h('div', { class: 'reg-print-status' }, '⏳ Gerando o print da página ' + it.pagina + '…');
+  const previa = h('div', { class: 'reg-print-previa' });
+  const janela = modal({
+    titulo: '📸 Print do protocolo — ' + it.titulo,
+    largura: 760,
+    conteudo: h('div', null, status, previa),
+    botoes: [{ texto: 'Fechar' }]
+  });
+
+  Promise.all([gerando, pngPromessa]).then(async ([r, png]) => {
+    const urlImg = URL.createObjectURL(png);
+    previa.appendChild(h('img', { src: urlImg, alt: 'Print do protocolo: ' + it.titulo }));
+    const avisos = [];
+    if (r.paginaInteira) avisos.push('Esta página é fluxograma/anexo ou não consegui separar o trecho: o print mostra a página ' + it.pagina + ' inteira.');
+    if (r.cortado) avisos.push('O trecho continua depois da pág. ' + r.paginas[r.paginas.length - 1] + ' — veja o PDF completo.');
+    let copiou = false;
+    if (copia) { try { await copia; copiou = true; } catch (e) { copiou = false; } }
+    status.innerHTML = '';
+    status.appendChild(h('div', { class: 'msg ' + (copiou ? 'ok' : 'aviso') },
+      copiou ? '✅ Imagem copiada. Cole com Ctrl+V (WhatsApp, Word, e-mail…).'
+             : 'Não consegui copiar automaticamente. Use "Copiar imagem" ou baixe o arquivo.'));
+    avisos.forEach((a) => status.appendChild(h('div', { class: 'msg aviso' }, '⚠️ ' + a)));
+
+    janela.definirBotoes([
+      { texto: '📋 Copiar imagem', acao: async () => {
+        try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]); toast('Imagem copiada. Cole com Ctrl+V.', '📋 Copiado', 'ok', 3); }
+        catch (e) { toast('O navegador não deixou copiar. Baixe a imagem.', 'Atenção', 'aviso'); }
+      } },
+      { texto: '🖼️ Baixar PNG', acao: () => {
+        const a = h('a', { href: urlImg, download: nomeArquivo(it) + '.png', style: { display: 'none' } });
+        document.body.appendChild(a); a.click(); a.remove();
+      } },
+      { texto: '📄 Baixar PDF', classe: 'principal', acao: async () => {
+        try { baixarPdf(await pngParaPdf(window.PDFLib, png, r.canvas.width, r.canvas.height), nomeArquivo(it)); }
+        catch (e) { toast('Não consegui gerar o PDF: ' + e.message, 'Erro', 'erro'); }
+      } },
+      { texto: 'Fechar', acao: (fechar) => { URL.revokeObjectURL(urlImg); fechar(); } }
+    ]);
+  }).catch((e) => {
+    status.innerHTML = '';
+    status.appendChild(h('div', { class: 'msg erro' }, 'Não consegui gerar o print: ' + e.message + '. Use "Abrir no PDF".'));
+  });
 }
 
 function cartao(it, palavras, aberto) {
@@ -184,7 +269,9 @@ function cartao(it, palavras, aberto) {
         const txt = it.titulo + ' — ' + FONTES[it.fonte] + ' (' + it.especialidade + ', pág. ' + it.pagina + ')\n\n' + it.texto;
         try { await navigator.clipboard.writeText(txt); toast('Texto copiado.', '📋 Copiado', 'ok', 3); }
         catch (e) { toast('Não consegui copiar. Selecione o texto e copie.', 'Atenção', 'aviso'); }
-      } }, '📋 Copiar texto')));
+      } }, '📋 Copiar texto'),
+      h('button', { type: 'button', class: 'btn pequeno', title: 'Recorta este trecho da página original do protocolo e copia como imagem',
+        onclick: () => printDoProtocolo(it) }, '📸 Print do protocolo')));
   return det;
 }
 
@@ -219,6 +306,9 @@ function estilos() {
 .reg-texto mark { background: #FFE58A; color: inherit; padding: 0 1px; border-radius: 2px; }
 .reg-titulo mark { background: #FFE58A; color: inherit; }
 .reg-acoes { padding: 6px 14px 12px 18px; }
+.reg-print-status .msg { margin: 0 0 8px; }
+.reg-print-previa { max-height: 62vh; overflow: auto; border: 1px solid var(--borda-card); border-radius: 6px; background: #EEE; }
+.reg-print-previa img { display: block; width: 100%; height: auto; background: #fff; }
 .reg-especialidades { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .reg-especialidades button { border: 1px solid var(--borda-card); background: #fff; border-radius: 16px; padding: 5px 11px; cursor: pointer; font-size: 13px; }
 .reg-especialidades button:hover { border-color: var(--primaria); background: var(--busca-fundo); }
